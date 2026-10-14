@@ -20,6 +20,7 @@ from karenbot.domain.models import (
     CaseAuthorization,
     CaseEvidence,
     Communication,
+    Company,
     OutboxMessage,
     SupportChannel,
 )
@@ -38,6 +39,10 @@ class AuthorizationSnapshot:
 class CaseContext:
     case_id: uuid.UUID
     case_status: str
+    # Moral code: the company's size class and whether it may be targeted at
+    # all. Small businesses and unclassified companies are never targetable.
+    company_size_class: str
+    company_targetable: bool
     authorization: AuthorizationSnapshot | None
     verified_support_channel_ids: frozenset[uuid.UUID]
     evidence_ids: frozenset[uuid.UUID]
@@ -58,6 +63,10 @@ class CaseContext:
 def build_case_context(session: Session, case: Case) -> CaseContext:
     settings = get_settings()
     now = datetime.now(UTC)
+
+    company = session.get(Company, case.company_id)
+    size_class = company.size_class if company else "unclassified"
+    targetable = size_class in settings.targetable_size_classes
 
     auth_row = session.scalars(
         select(CaseAuthorization)
@@ -121,6 +130,8 @@ def build_case_context(session: Session, case: Case) -> CaseContext:
     return CaseContext(
         case_id=case.id,
         case_status=case.status,
+        company_size_class=size_class,
+        company_targetable=targetable,
         authorization=authorization,
         verified_support_channel_ids=channel_ids,
         evidence_ids=evidence_ids,

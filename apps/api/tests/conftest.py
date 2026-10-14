@@ -47,7 +47,7 @@ def seeded(db):
 
     with db() as session:
         user = User(email="dana@example.com", display_name="Dana Example")
-        company = Company(name="Acme Air", industry="airline")
+        company = Company(name="Acme Air", industry="airline", size_class="enterprise")
         session.add_all([user, company])
         session.flush()
         channel = SupportChannel(

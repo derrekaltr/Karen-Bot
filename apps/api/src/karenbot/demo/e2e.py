@@ -83,7 +83,12 @@ def main() -> None:
     banner("1. Seed: company intelligence (verified channel + policy)")
     with factory() as session:
         user = User(email="dana@example.com", display_name="Dana Example")
-        company = Company(name="Acme Air", industry="airline", website="https://acme.example")
+        company = Company(
+            name="Acme Air",
+            industry="airline",
+            website="https://acme.example",
+            size_class="enterprise",
+        )
         session.add_all([user, company])
         session.flush()
         session.add(

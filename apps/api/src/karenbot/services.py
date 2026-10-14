@@ -28,6 +28,27 @@ from karenbot.workflows import executor
 
 _action_adapter: TypeAdapter[ProposedAction] = TypeAdapter(ProposedAction)
 
+
+class CompanyNotTargetable(Exception):
+    """Moral code: KarenBot does not go after mom-and-pop businesses.
+
+    Raised at case creation for any company whose size class is not on the
+    targetable list (small businesses and unreviewed companies included)."""
+
+    def __init__(self, company_name: str, size_class: str):
+        super().__init__(
+            f"KarenBot only takes on large companies. '{company_name}' is "
+            f"classified as '{size_class}' and will not be targeted."
+        )
+        self.company_name = company_name
+        self.size_class = size_class
+
+
+def company_is_targetable(company: Company) -> bool:
+    from karenbot.config import get_settings
+
+    return company.size_class in get_settings().targetable_size_classes
+
 # Intake consent: granted implicitly when the customer creates a case and
 # accepts the product terms. Permits ONLY internal information requests.
 INTAKE_ACTIONS = ["request_customer_info"]
@@ -55,6 +76,17 @@ def create_case(
     requested_amount: Decimal | None,
     incident_date: datetime | None = None,
 ) -> Case:
+    if not company_is_targetable(company):
+        session.add(
+            AuditEvent(
+                actor_type=ActorType.SYSTEM.value,
+                case_id=None,
+                event_type="case.rejected_company_not_targetable",
+                event_payload={"company": company.name, "size_class": company.size_class},
+            )
+        )
+        session.flush()
+        raise CompanyNotTargetable(company.name, company.size_class)
     case = Case(
         user_id=user.id,
         company_id=company.id,

@@ -61,6 +61,12 @@ def evaluate(
     if action.action in SENSITIVE_ACTION_TYPES or action.risk_level == "high":
         approval.append(f"sensitive_action_requires_customer_approval:{action.action}")
 
+    # Moral code: company-facing pressure is only ever applied to large
+    # enterprises. Small businesses and unclassified companies are off-limits
+    # for any outward action, full stop.
+    if isinstance(action, (SendMessage, RecommendEscalation)) and not ctx.company_targetable:
+        deny.append(f"company_not_targetable:{ctx.company_size_class}")
+
     # --- Action-specific checks ------------------------------------------
     if isinstance(action, SendMessage):
         _check_send_message(action, ctx, now, deny)

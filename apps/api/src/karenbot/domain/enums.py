@@ -77,6 +77,21 @@ class CaseEvent(StrEnum):
     CASE_RESUMED = "CASE_RESUMED"
 
 
+class CompanySizeClass(StrEnum):
+    """Targeting classification — KarenBot's moral code.
+
+    KarenBot pursues large enterprises (national chains, airlines, card
+    networks, platforms), never mom-and-pop businesses. Companies are
+    UNCLASSIFIED until a human classifies them, and unclassified companies
+    are NOT targetable: the safe default is to leave a business alone.
+    """
+
+    ENTERPRISE = "enterprise"  # Delta, Uber, Amex, McDonald's, Chipotle, ...
+    MID_MARKET = "mid_market"  # regional chains; targetable only if enabled
+    SMALL_BUSINESS = "small_business"  # mom-and-pop: never targetable
+    UNCLASSIFIED = "unclassified"  # not yet reviewed: never targetable
+
+
 class Channel(StrEnum):
     EMAIL = "email"
     CHAT = "chat"

@@ -1,6 +1,10 @@
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Size classes that may NEVER be targeted, regardless of configuration.
+NEVER_TARGETABLE_SIZE_CLASSES = frozenset({"small_business", "unclassified"})
 
 
 class Settings(BaseSettings):
@@ -12,6 +16,11 @@ class Settings(BaseSettings):
     agent_model: str = "claude-sonnet-5-5"
     classifier_model: str = "claude-haiku-4-5-20251001"
 
+    # Moral code: company size classes KarenBot may target. Mom-and-pop
+    # businesses ("small_business") and unreviewed companies ("unclassified")
+    # must never appear here.
+    targetable_size_classes: list[str] = ["enterprise"]
+
     # Global safety limits (per-case limits live in case authorizations)
     max_outbound_per_case_per_day: int = 3
     max_outbound_per_case_total: int = 12
@@ -21,6 +30,13 @@ class Settings(BaseSettings):
     # Worker
     worker_poll_seconds: float = 2.0
     outbox_sending_lease_seconds: int = 300
+
+    @field_validator("targetable_size_classes")
+    @classmethod
+    def _enforce_moral_code(cls, value: list[str]) -> list[str]:
+        # The moral code is not configurable away: small businesses and
+        # unreviewed companies are silently stripped if anyone adds them.
+        return [v for v in value if v not in NEVER_TARGETABLE_SIZE_CLASSES]
 
 
 @lru_cache

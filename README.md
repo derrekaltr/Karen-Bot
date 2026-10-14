@@ -57,6 +57,12 @@ docs/           architecture, state machine
 
 ## Safety model (short version)
 
+**Moral code — punch up, never down.** KarenBot only targets large
+enterprises (airlines, national chains, card networks). Mom-and-pop
+businesses and unreviewed companies are refused at case creation, denied by
+the policy engine, and cannot be whitelisted via configuration. See
+`docs/moral-code.md`.
+
 The LLM can only *propose* typed actions. A pure, deterministic policy engine
 checks authorization, verified recipients, claim types, amount ceilings, rate
 limits, and duplicates; binding settlements always require explicit customer

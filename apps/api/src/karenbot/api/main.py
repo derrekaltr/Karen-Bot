@@ -76,6 +76,12 @@ def create_case(
     company = db.scalars(select(Company).where(Company.name == payload.company_name)).first()
     if company is None:
         raise HTTPException(404, "company not supported yet")
+    if not services.company_is_targetable(company):
+        raise HTTPException(
+            422,
+            "KarenBot only takes on large companies — this business is not "
+            "one we'll go after.",
+        )
     return services.create_case(
         db,
         user=user,

@@ -80,6 +80,10 @@ class Company(TimestampMixin, Base):
     industry: Mapped[str] = mapped_column(String(80))  # "airline", "hotel", "ecommerce"
     website: Mapped[str | None] = mapped_column(String(500))
     supported_status: Mapped[str] = mapped_column(String(40), default="supported")
+    # Moral code: only large companies are fair game (see CompanySizeClass).
+    # Defaults to unclassified, which is NOT targetable until a human review
+    # sets it. Mom-and-pop businesses are never targeted.
+    size_class: Mapped[str] = mapped_column(String(40), default="unclassified")
 
     support_channels: Mapped[list["SupportChannel"]] = relationship(back_populates="company")
     policies: Mapped[list["CompanyPolicy"]] = relationship(back_populates="company")

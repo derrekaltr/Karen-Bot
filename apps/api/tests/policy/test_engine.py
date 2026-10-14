@@ -31,6 +31,8 @@ def make_ctx(**overrides) -> CaseContext:
     defaults = dict(
         case_id=CASE_ID,
         case_status=CaseStatus.READY_TO_CONTACT.value,
+        company_size_class="enterprise",
+        company_targetable=True,
         authorization=make_auth(),
         verified_support_channel_ids=frozenset({CHANNEL_ID}),
         evidence_ids=frozenset({EVIDENCE_ID}),
@@ -192,6 +194,22 @@ def test_deny_wins_over_approval():
     auth = make_auth(authorized_actions=frozenset({"send_message"}))
     decision = evaluate(action, make_ctx(authorization=auth), now=NOW)
     assert decision.decision == PolicyDecisionType.DENY
+
+
+def test_small_business_is_never_contacted():
+    """Moral code: mom-and-pop businesses are off-limits."""
+    ctx = make_ctx(company_size_class="small_business", company_targetable=False)
+    decision = evaluate(make_send(), ctx, now=NOW)
+    assert decision.decision == PolicyDecisionType.DENY
+    assert "company_not_targetable:small_business" in decision.reasons
+
+
+def test_unclassified_company_is_not_contacted():
+    """Safe default: unreviewed companies are left alone."""
+    ctx = make_ctx(company_size_class="unclassified", company_targetable=False)
+    decision = evaluate(make_send(), ctx, now=NOW)
+    assert decision.decision == PolicyDecisionType.DENY
+    assert "company_not_targetable:unclassified" in decision.reasons
 
 
 def test_case_id_mismatch_denies():
