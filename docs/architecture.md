@@ -55,14 +55,31 @@ mechanically onto Temporal.
 find_by_idempotency_key). Every message in either direction on any channel is
 a `communications` row tied to a `conversations` thread.
 
-**Email is multi-provider by design** — never Gmail-only. Providers register
-in `channels/registry.py` and are selected per connected account
-(`connected_accounts.provider`): `mock` (implemented), and in M4 `gmail`
-(Gmail API), `outlook` (Microsoft Graph: Outlook/Hotmail/M365), and
-`imap_smtp` (generic IMAP/SMTP for Yahoo, iCloud, Fastmail, custom domains —
-the long tail). Adding a provider must never touch the agent, policy, or
-workflow layers. Also planned: `WebChatAdapter` (M3), `VoiceAdapter`
-(post-MVP; a call becomes a transcript in the same tables).
+**Email is multi-provider by design** — never Gmail-only. Adapters are
+selected per connected account (`connected_accounts.provider`) by
+`channels/resolver.py`: `mock` (dev/simulator), `gmail` (Gmail REST API),
+`outlook` (Microsoft Graph: Outlook.com/Hotmail/M365), and `imap_smtp`
+(generic IMAP/SMTP with app passwords: Yahoo, iCloud, Fastmail, custom
+domains — the long tail). All implemented against injectable transports and
+covered by fakes in `tests/channels/`. Adding a provider must never touch
+the agent, policy, or workflow layers.
+
+Cross-provider exactly-once: every outbound email carries a deterministic
+`Message-ID` derived from its outbox idempotency key
+(`channels/mime_utils.py`), searchable on every provider (Gmail
+`rfc822msgid:`, Graph `internetMessageId eq`, IMAP `HEADER Message-ID` on the
+Sent folder, which the IMAP adapter populates via APPEND). Crash recovery
+asks the provider before ever resending. Threading uses native thread ids
+where they exist (Gmail threadId, Graph conversationId) and RFC-2822
+`References`-root threading for IMAP.
+
+OAuth (Gmail/Outlook) lives in `channels/oauth.py` + `/connect` endpoints;
+refresh tokens are Fernet-encrypted at rest (`security/crypto.py`; dev mode
+derives a local key, production requires `KARENBOT_TOKEN_ENCRYPTION_KEY`).
+Revoking a connected account drops its ciphertext immediately. Note: the
+OAuth `state` is a dev stub pending Clerk sessions (CSRF nonce required
+before production). Also planned: `VoiceAdapter` (post-MVP; a call becomes a
+transcript in the same tables).
 
 Inbound mail that cannot be matched to a known thread is routed to human
 review (`inbound.unmatched` audit event) — never guessed onto a case.

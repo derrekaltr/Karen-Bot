@@ -419,6 +419,10 @@ def revoke(
 # Dev simulator (local development only)
 # --------------------------------------------------------------------------
 
+from karenbot.api import connect  # noqa: E402
+
+app.include_router(connect.build_router(), prefix="/connect", tags=["connect"])
+
 if get_settings().dev_mode:
     from karenbot.api import dev
 

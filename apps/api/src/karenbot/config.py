@@ -38,6 +38,21 @@ class Settings(BaseSettings):
     # false in any deployed environment.
     dev_mode: bool = True
 
+    # Fernet key for OAuth tokens at rest (python -m karenbot.security.crypto
+    # to generate). Required outside dev mode.
+    token_encryption_key: str = ""
+
+    # OAuth clients for email providers. Empty = provider connect disabled.
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    microsoft_client_id: str = ""
+    microsoft_client_secret: str = ""
+    oauth_redirect_base: str = "http://localhost:8000"
+
+    # Sender identity for SMTP/IMAP accounts (per-account overrides live on
+    # the connected account's token payload).
+    outbound_from_name: str = "KarenBot (authorized representative)"
+
     @field_validator("targetable_size_classes")
     @classmethod
     def _enforce_moral_code(cls, value: list[str]) -> list[str]:

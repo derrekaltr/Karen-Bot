@@ -68,6 +68,20 @@ def deliver(session: Session, row: OutboxMessage, adapter: ChannelAdapter) -> No
     thread_id = session.scalar(
         select(Conversation.provider_thread_id).where(Conversation.id == row.conversation_id)
     )
+    # RFC-2822 threading for providers without native threads: reply to the
+    # most recent inbound message in this conversation.
+    last_inbound = session.scalars(
+        select(Communication)
+        .where(
+            Communication.conversation_id == row.conversation_id,
+            Communication.direction == Direction.INBOUND.value,
+        )
+        .order_by(Communication.created_at.desc())
+    ).first()
+    metadata: dict = {}
+    if last_inbound is not None and last_inbound.provider_message_id:
+        metadata["in_reply_to"] = last_inbound.provider_message_id
+        metadata["references"] = [last_inbound.provider_message_id]
     try:
         receipt = adapter.send(
             OutboundMessage(
@@ -76,6 +90,7 @@ def deliver(session: Session, row: OutboxMessage, adapter: ChannelAdapter) -> No
                 subject=row.subject,
                 body=row.body,
                 thread_provider_id=thread_id,
+                metadata=metadata,
             )
         )
     except Exception as exc:
@@ -162,31 +177,37 @@ def _finalize_sent(session: Session, row: OutboxMessage, receipt: _SendReceipt) 
     )
 
 
-def recover_stuck(session: Session, adapter: ChannelAdapter) -> int:
-    """Resolve rows stuck in 'sending' past their lease.
-
-    If the provider confirms the idempotency key went out, finalize as sent;
-    otherwise requeue. Never blind-resend.
-    """
+def stuck_rows(session: Session) -> list[OutboxMessage]:
     now = datetime.now(UTC)
-    stuck = session.scalars(
-        select(OutboxMessage).where(
-            OutboxMessage.status == OutboxStatus.SENDING.value,
-            OutboxMessage.locked_until < now,
+    return list(
+        session.scalars(
+            select(OutboxMessage).where(
+                OutboxMessage.status == OutboxStatus.SENDING.value,
+                OutboxMessage.locked_until < now,
+            )
         )
-    ).all()
-    recovered = 0
-    for row in stuck:
-        receipt = adapter.find_by_idempotency_key(row.idempotency_key)
-        if receipt is not None:
-            _finalize_sent(session, row, receipt)
-        else:
-            row.status = OutboxStatus.PENDING.value
-            row.locked_by = None
-            row.locked_until = None
-        recovered += 1
+    )
+
+
+def recover_row(session: Session, row: OutboxMessage, adapter: ChannelAdapter) -> None:
+    """Resolve one row stuck in 'sending' past its lease. If the provider
+    confirms the idempotency key went out, finalize as sent; otherwise
+    requeue. Never blind-resend. Caller commits."""
+    receipt = adapter.find_by_idempotency_key(row.idempotency_key)
+    if receipt is not None:
+        _finalize_sent(session, row, receipt)
+    else:
+        row.status = OutboxStatus.PENDING.value
+        row.locked_by = None
+        row.locked_until = None
+
+
+def recover_stuck(session: Session, adapter: ChannelAdapter) -> int:
+    rows = stuck_rows(session)
+    for row in rows:
+        recover_row(session, row, adapter)
     session.commit()
-    return recovered
+    return len(rows)
 
 
 def enqueue(

@@ -23,10 +23,21 @@ logger = logging.getLogger("karenbot.worker")
 
 
 class Worker:
-    def __init__(self, adapter: ChannelAdapter, runtime: AgentRuntime, worker_id: str | None = None):
+    def __init__(
+        self,
+        adapter: ChannelAdapter,
+        runtime: AgentRuntime,
+        worker_id: str | None = None,
+        *,
+        per_account: bool = False,
+    ):
+        """`per_account=True` resolves the adapter per outbox row / connected
+        account (production, real providers). False uses the fixed adapter
+        (dev/mock, tests)."""
         self.adapter = adapter
         self.runtime = runtime
         self.worker_id = worker_id or f"worker-{uuid.uuid4().hex[:8]}"
+        self.per_account = per_account
 
     @property
     def session_factory(self):
@@ -34,11 +45,31 @@ class Worker:
         # and dev reconfiguration swap databases after construction).
         return get_session_factory()
 
+    def _adapter_for_row(self, session: Session, row) -> ChannelAdapter:
+        if not self.per_account:
+            return self.adapter
+        from karenbot.channels.resolver import resolve_outbox_adapter
+
+        return resolve_outbox_adapter(session, row)
+
+    def _inbound_adapters(self, session: Session) -> list[ChannelAdapter]:
+        if not self.per_account:
+            return [self.adapter]
+        from karenbot.channels.resolver import inbound_adapters
+
+        return inbound_adapters(session)
+
     # Each tick is one pass over: stuck recovery -> outbox -> jobs -> inbound.
     def tick(self) -> int:
         work_done = 0
         with self.session_factory() as session:
-            work_done += outbox.recover_stuck(session, self.adapter)
+            for stuck in outbox.stuck_rows(session):
+                try:
+                    outbox.recover_row(session, stuck, self._adapter_for_row(session, stuck))
+                    work_done += 1
+                except Exception:
+                    logger.exception("recovery failed for outbox row %s", stuck.id)
+            session.commit()
 
         while True:
             with self.session_factory() as session:
@@ -46,7 +77,7 @@ class Worker:
                 if row is None:
                     break
                 try:
-                    outbox.deliver(session, row, self.adapter)
+                    outbox.deliver(session, row, self._adapter_for_row(session, row))
                     work_done += 1
                 except Exception:
                     logger.exception("outbox delivery failed for %s", row.id)
@@ -63,7 +94,9 @@ class Worker:
                     logger.exception("job failed: %s", job.id)
 
         with self.session_factory() as session:
-            new_comms = inbound.poll_inbound(session, self.adapter)
+            new_comms = []
+            for source in self._inbound_adapters(session):
+                new_comms.extend(inbound.poll_inbound(session, source))
             session.commit()
             for comm in new_comms:
                 if comm.counterparty == Counterparty.COMPANY.value:
@@ -128,10 +161,14 @@ def main() -> None:
         from karenbot.llm.anthropic_client import AnthropicClient
 
         llm = AnthropicClient()  # type: ignore[assignment]
-    adapter = get_email_adapter(settings.email_provider)
-    if isinstance(adapter, MockEmailAdapter) and adapter.responder is None:
-        adapter.responder = PERSONAS["lowball_then_accept"]
-    Worker(adapter, AgentRuntime(llm)).run_forever()
+    if settings.email_provider == "mock":
+        adapter = get_email_adapter("mock")
+        if isinstance(adapter, MockEmailAdapter) and adapter.responder is None:
+            adapter.responder = PERSONAS["lowball_then_accept"]
+        Worker(adapter, AgentRuntime(llm)).run_forever()
+    else:
+        # Real providers: resolve the adapter per connected account.
+        Worker(MockEmailAdapter(), AgentRuntime(llm), per_account=True).run_forever()
 
 
 if __name__ == "__main__":
