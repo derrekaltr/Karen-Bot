@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { NewCaseTabs } from "./tabs";
+import { GuidedIntake } from "./intake";
 
 export const metadata: Metadata = {
   title: "New Case — KarenBot",
@@ -26,10 +26,10 @@ export default function NewCasePage() {
       <main className="mx-auto max-w-3xl px-6 py-10">
         <h1 className="text-2xl font-bold tracking-tight">Start a new case</h1>
         <p className="mt-2 text-sm text-ink-600">
-          Tell Karen what happened — chat with her or fill out a quick form.
+          Tell Karen what happened — she&apos;ll walk you through it.
         </p>
         <div className="mt-8">
-          <NewCaseTabs />
+          <GuidedIntake />
         </div>
       </main>
     </div>

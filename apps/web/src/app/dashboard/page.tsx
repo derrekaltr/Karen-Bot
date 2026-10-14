@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { ButtonLink } from "@/components/Button";
+import { CasesList } from "./cases-list";
 
 export const metadata: Metadata = {
   title: "Dashboard — KarenBot",
@@ -44,24 +44,7 @@ export default function DashboardPage() {
         <header className="border-b border-slate-100 px-8 py-5">
           <h1 className="text-xl font-semibold tracking-tight">Cases</h1>
         </header>
-        <div className="flex flex-1 items-center justify-center px-8 py-16">
-          <div className="text-center">
-            <div
-              aria-hidden="true"
-              className="mx-auto flex size-14 items-center justify-center rounded-full bg-accent-50 text-2xl"
-            >
-              📂
-            </div>
-            <h2 className="mt-5 text-lg font-semibold">No active cases yet</h2>
-            <p className="mx-auto mt-2 max-w-sm text-sm text-ink-600">
-              When you start a case, Karen will track every email, escalation,
-              and refund here.
-            </p>
-            <div className="mt-6">
-              <ButtonLink href="/cases/new">Start your first case</ButtonLink>
-            </div>
-          </div>
-        </div>
+        <CasesList />
       </main>
     </div>
   );
