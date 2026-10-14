@@ -1,0 +1,38 @@
+name: karenbot
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: karenbot
+      POSTGRES_PASSWORD: karenbot
+      POSTGRES_DB: karenbot
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U karenbot"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Object storage for evidence files (M3+). Opt in with:
+  #   docker compose --profile storage -f infra/docker-compose.yml up -d
+  minio:
+    image: quay.io/minio/minio:latest
+    profiles: ["storage"]
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: karenbot
+      MINIO_ROOT_PASSWORD: karenbot-dev-secret
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+
+volumes:
+  pgdata:
+  miniodata:

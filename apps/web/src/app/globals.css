@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+@theme {
+  --color-accent-50: #eefbf5;
+  --color-accent-100: #d6f5e6;
+  --color-accent-500: #0e9f6e;
+  --color-accent-600: #0b815a;
+  --color-accent-700: #096849;
+  --color-ink-900: #0f172a;
+  --color-ink-600: #475569;
+  --color-ink-400: #94a3b8;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent-600);
+  outline-offset: 2px;
+}
+
+body {
+  @apply bg-white text-ink-900 antialiased;
+}

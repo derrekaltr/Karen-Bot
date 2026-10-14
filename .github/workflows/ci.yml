@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: karenbot
+          POSTGRES_PASSWORD: karenbot
+          POSTGRES_DB: karenbot_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U karenbot"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e "apps/api[dev]"
+      - name: Lint
+        run: ruff check apps/api/src apps/api/tests
+      - name: Typecheck
+        run: mypy apps/api/src
+      - name: Tests (SQLite)
+        run: pytest tests -q
+        working-directory: apps/api
+      - name: Tests (Postgres)
+        run: pytest tests -q
+        working-directory: apps/api
+        env:
+          KARENBOT_TEST_DATABASE_URL: postgresql+psycopg://karenbot:karenbot@localhost:5432/karenbot_test
+      - name: Migrations apply cleanly
+        run: alembic upgrade head
+        working-directory: apps/api
+        env:
+          KARENBOT_DATABASE_URL: postgresql+psycopg://karenbot:karenbot@localhost:5432/karenbot_test
+      - name: End-to-end demo
+        run: python -m karenbot.demo.e2e
+        working-directory: apps/api
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install
+      - run: npm run build --workspace apps/web
+      - run: npm run typecheck --workspace apps/web
