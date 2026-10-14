@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from karenbot.config import get_settings
+from karenbot.domain.controls import kill_switch_active
 from karenbot.domain.enums import Direction, OutboxStatus
 from karenbot.domain.fingerprint import message_fingerprint
 from karenbot.domain.models import (
@@ -52,6 +53,9 @@ class CaseContext:
     outbound_count_24h: int
     outbound_count_total: int
     follow_ups_sent: int
+    # Cross-case counters: this user across all cases, and platform-wide.
+    user_outbound_24h: int
+    global_outbound_1h: int
     last_outbound_at: datetime | None
     recent_outbound_fingerprints: frozenset[str]
     pending_outbox_fingerprints: frozenset[str] = field(default_factory=frozenset)
@@ -61,6 +65,8 @@ class CaseContext:
     max_outbound_total: int = 12
     max_follow_ups: int = 4
     min_hours_between_outbound: int = 20
+    max_outbound_per_user_per_day: int = 10
+    max_outbound_global_per_hour: int = 100
 
 
 def build_case_context(session: Session, case: Case) -> CaseContext:
@@ -120,6 +126,29 @@ def build_case_context(session: Session, case: Case) -> CaseContext:
 
     follow_ups_sent = sum(1 for c in outbound if (c.classification or {}).get("is_follow_up"))
 
+    # Cross-case counters (user- and platform-level rate limits).
+    hour_ago = now - timedelta(hours=1)
+    user_case_ids = session.scalars(select(Case.id).where(Case.user_id == case.user_id)).all()
+    user_outbound = session.scalars(
+        select(Communication.sent_at).where(
+            Communication.case_id.in_(user_case_ids),
+            Communication.direction == Direction.OUTBOUND.value,
+            Communication.counterparty == "company",
+        )
+    ).all()
+    user_outbound_24h = sum(
+        1 for t in user_outbound if (ts := _aware(t)) is not None and ts >= cutoff
+    )
+    global_outbound = session.scalars(
+        select(Communication.sent_at).where(
+            Communication.direction == Direction.OUTBOUND.value,
+            Communication.counterparty == "company",
+        )
+    ).all()
+    global_outbound_1h = sum(
+        1 for t in global_outbound if (ts := _aware(t)) is not None and ts >= hour_ago
+    )
+
     # Fingerprints of recent sends and not-yet-sent queued messages, for
     # duplicate detection.
     recent_fps = {message_fingerprint(c.subject, c.body) for c in outbound}
@@ -143,12 +172,16 @@ def build_case_context(session: Session, case: Case) -> CaseContext:
         outbound_count_24h=outbound_count_24h,
         outbound_count_total=len(outbound),
         follow_ups_sent=int(follow_ups_sent),
+        user_outbound_24h=user_outbound_24h,
+        global_outbound_1h=global_outbound_1h,
         last_outbound_at=last_outbound_at,
         recent_outbound_fingerprints=frozenset(recent_fps),
         pending_outbox_fingerprints=frozenset(pending_fps),
-        kill_switch_active=False,
+        kill_switch_active=kill_switch_active(session),
         max_outbound_per_day=settings.max_outbound_per_case_per_day,
         max_outbound_total=settings.max_outbound_per_case_total,
         max_follow_ups=settings.max_follow_ups,
         min_hours_between_outbound=settings.min_hours_between_outbound,
+        max_outbound_per_user_per_day=settings.max_outbound_per_user_per_day,
+        max_outbound_global_per_hour=settings.max_outbound_global_per_hour,
     )

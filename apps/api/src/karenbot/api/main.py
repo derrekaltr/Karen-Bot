@@ -33,9 +33,11 @@ from karenbot.domain.models import (
     User,
 )
 from karenbot.llm.scripted import ScriptedClient
+from karenbot.observability import init_observability  # noqa: E402
 from karenbot.simulator.personas import PERSONAS
 from karenbot.workflows.worker import Worker
 
+init_observability("api")
 app = FastAPI(title="KarenBot API", version="0.1.0")
 
 app.add_middleware(
@@ -419,9 +421,10 @@ def revoke(
 # Dev simulator (local development only)
 # --------------------------------------------------------------------------
 
-from karenbot.api import connect  # noqa: E402
+from karenbot.api import admin, connect  # noqa: E402
 
 app.include_router(connect.build_router(), prefix="/connect", tags=["connect"])
+app.include_router(admin.router, prefix="/admin", tags=["admin"])
 
 if get_settings().dev_mode:
     from karenbot.api import dev

@@ -66,8 +66,14 @@ the policy engine, and cannot be whitelisted via configuration. See
 
 The LLM can only *propose* typed actions. A pure, deterministic policy engine
 checks authorization, verified recipients, claim types, amount ceilings, rate
-limits, and duplicates; binding settlements always require explicit customer
-approval. Recipients resolve only from a verified support-channel table.
+limits (per case, per user across cases, and a platform-wide hourly circuit
+breaker), and duplicates; binding settlements always require explicit
+customer approval. A DB-backed global kill switch denies everything
+instantly, and admins can pause any case (`/admin`, web console at
+`/admin`). A 10-entry prompt-injection red-team corpus runs in CI
+(`tests/injection/`) asserting hard invariants: outbound mail only to
+verified channels, no unapproved settlements, no case closure or data echo
+from hostile inbound content. Recipients resolve only from a verified support-channel table.
 Every proposal, verdict, message, and state change is audit-logged. Inbound
 email is untrusted data — see `tests/injection/`. Customers can revoke
 authority at any time (kill switch); admins can block any case.
@@ -84,6 +90,8 @@ authority at any time (kill switch); admins can block any case.
 | `KARENBOT_GOOGLE_CLIENT_ID/SECRET` | – | Gmail OAuth client (testing mode until CASA clears) |
 | `KARENBOT_MICROSOFT_CLIENT_ID/SECRET` | – | Outlook/Microsoft Graph OAuth client |
 | `KARENBOT_OAUTH_REDIRECT_BASE` | `http://localhost:8000` | OAuth callback base URL |
+| `KARENBOT_ADMIN_TOKEN` | `dev-admin` | admin console token (dev default rejected in prod) |
+| `KARENBOT_SENTRY_DSN` | – | enables Sentry (`pip install 'karenbot-api[observability]'`) |
 | `KARENBOT_ANTHROPIC_API_KEY` | – | required for `anthropic` |
 | `KARENBOT_AGENT_MODEL` | `claude-sonnet-5-5` | drafting/reasoning model |
 | `KARENBOT_CLASSIFIER_MODEL` | `claude-haiku-4-5-20251001` | reply classification |

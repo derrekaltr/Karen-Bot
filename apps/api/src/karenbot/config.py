@@ -29,6 +29,16 @@ class Settings(BaseSettings):
     max_outbound_per_case_total: int = 12
     max_follow_ups: int = 4
     min_hours_between_outbound: int = 20
+    # Cross-case limits: one user across all their cases, and the whole
+    # platform (circuit breaker against runaway sending).
+    max_outbound_per_user_per_day: int = 10
+    max_outbound_global_per_hour: int = 100
+
+    # Admin API token (dev default only works in dev mode).
+    admin_token: str = "dev-admin"
+
+    # Observability (optional).
+    sentry_dsn: str = ""
 
     # Worker
     worker_poll_seconds: float = 2.0

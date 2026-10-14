@@ -355,6 +355,16 @@ class BillingRecord(TimestampMixin, Base):
     payment_status: Mapped[str] = mapped_column(String(40), default="not_charged")
 
 
+class SystemControl(TimestampMixin, Base):
+    """Operational switches (e.g. the global kill switch). Keyed KV so new
+    controls don't need migrations; every change is audited by the caller."""
+
+    __tablename__ = "system_controls"
+
+    key: Mapped[str] = mapped_column(String(80), primary_key=True)
+    value: Mapped[dict[str, Any]] = mapped_column(JSONVariant, default=dict)
+
+
 class AuditEvent(Base):
     """Append-only audit trail. Never updated, never deleted."""
 

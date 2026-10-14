@@ -40,6 +40,8 @@ def make_ctx(**overrides) -> CaseContext:
         outbound_count_24h=0,
         outbound_count_total=0,
         follow_ups_sent=0,
+        user_outbound_24h=0,
+        global_outbound_1h=0,
         last_outbound_at=None,
         recent_outbound_fingerprints=frozenset(),
         pending_outbox_fingerprints=frozenset(),
@@ -195,6 +197,18 @@ def test_deny_wins_over_approval():
     auth = make_auth(authorized_actions=frozenset({"send_message"}))
     decision = evaluate(action, make_ctx(authorization=auth), now=NOW)
     assert decision.decision == PolicyDecisionType.DENY
+
+
+def test_user_daily_limit_across_cases_denies():
+    decision = evaluate(make_send(), make_ctx(user_outbound_24h=10), now=NOW)
+    assert decision.decision == PolicyDecisionType.DENY
+    assert "user_daily_outbound_limit_reached" in decision.reasons
+
+
+def test_global_hourly_circuit_breaker_denies():
+    decision = evaluate(make_send(), make_ctx(global_outbound_1h=100), now=NOW)
+    assert decision.decision == PolicyDecisionType.DENY
+    assert "global_hourly_outbound_limit_reached" in decision.reasons
 
 
 def test_small_business_is_never_contacted():

@@ -125,11 +125,15 @@ def _check_send_message(
     if unknown:
         deny.append("evidence_not_found_on_case")
 
-    # Frequency limits.
+    # Frequency limits: per case, per user across cases, and platform-wide.
     if ctx.outbound_count_24h >= ctx.max_outbound_per_day:
         deny.append("daily_outbound_limit_reached")
     if ctx.outbound_count_total >= ctx.max_outbound_total:
         deny.append("total_outbound_limit_reached")
+    if ctx.user_outbound_24h >= ctx.max_outbound_per_user_per_day:
+        deny.append("user_daily_outbound_limit_reached")
+    if ctx.global_outbound_1h >= ctx.max_outbound_global_per_hour:
+        deny.append("global_hourly_outbound_limit_reached")
     if action.is_follow_up and ctx.follow_ups_sent >= ctx.max_follow_ups:
         deny.append("max_follow_ups_reached")
     if ctx.last_outbound_at is not None:

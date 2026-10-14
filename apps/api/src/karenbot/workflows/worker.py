@@ -15,7 +15,7 @@ from karenbot.agent.runner import AgentRuntime
 from karenbot.channels.base import ChannelAdapter
 from karenbot.config import get_settings
 from karenbot.db.session import get_session_factory
-from karenbot.domain.enums import Counterparty
+from karenbot.domain.enums import ACTIVE_STATES, Counterparty
 from karenbot.domain.models import Case, Communication, ScheduledJob
 from karenbot.workflows import inbound, outbox, scheduler
 
@@ -109,6 +109,11 @@ class Worker:
         case = session.get(Case, comm.case_id)
         if case is None:
             return
+        # Paused (BLOCKED) or terminal cases: the reply is ingested and
+        # recorded, but the agent must not act until an admin resumes.
+        if case.status not in {s.value for s in ACTIVE_STATES}:
+            logger.info("case %s is %s; reply recorded, agent skipped", case.id, case.status)
+            return
         try:
             self.runtime.handle_company_reply(session, case, comm)
         except Exception:
@@ -149,7 +154,9 @@ class Worker:
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO)
+    from karenbot.observability import init_observability
+
+    init_observability("worker")
     from karenbot.channels.mock_email import MockEmailAdapter
     from karenbot.channels.registry import get_email_adapter
     from karenbot.llm.scripted import ScriptedClient

@@ -37,6 +37,14 @@ export default function DashboardPage() {
               </li>
             ))}
           </ul>
+          <div className="mt-2 sm:mt-4 sm:border-t sm:border-slate-200 sm:pt-3">
+            <Link
+              href="/admin"
+              className="block rounded-lg px-3 py-2 text-xs font-medium text-ink-400 hover:bg-slate-200/60 hover:text-ink-600"
+            >
+              Admin
+            </Link>
+          </div>
         </nav>
       </aside>
 
