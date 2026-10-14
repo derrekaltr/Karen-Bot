@@ -33,6 +33,7 @@ def make_ctx(**overrides) -> CaseContext:
         case_status=CaseStatus.READY_TO_CONTACT.value,
         company_size_class="enterprise",
         company_targetable=True,
+        company_refuses_third_party=False,
         authorization=make_auth(),
         verified_support_channel_ids=frozenset({CHANNEL_ID}),
         evidence_ids=frozenset({EVIDENCE_ID}),

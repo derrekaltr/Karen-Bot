@@ -14,6 +14,7 @@ CURRENT_VERSIONS: dict[str, int] = {
     "intake_extract": 1,
     "draft_email": 1,
     "draft_follow_up": 1,
+    "draft_for_customer": 1,
     "interpret_reply": 1,
 }
 

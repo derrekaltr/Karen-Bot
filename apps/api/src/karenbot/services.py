@@ -61,9 +61,31 @@ FULL_ACTIONS = [
     "schedule_follow_up",
     "record_offer",
     "accept_offer",
+    "draft_for_customer",
     "recommend_escalation",
     "close_case",
 ]
+
+
+def build_loa_text(user: User, company: Company, case: Case) -> str:
+    """The Letter of Authorization the customer signs: the documented-agency
+    defense file (docs/legal-risk.md). Plain language, case-specific."""
+    amount = f"{case.currency} {case.requested_amount}" if case.requested_amount else "an amount to be determined"
+    return (
+        f"LETTER OF AUTHORIZATION\n\n"
+        f"I, {user.display_name or user.email}, authorize KarenBot to act as my "
+        f"representative in communicating with {company.name} regarding my "
+        f"{case.category.replace('_', ' ')} dispute (case {case.id}), including "
+        f"contacting {company.name}'s official customer-service channels, "
+        f"negotiating on my behalf, and requesting compensation of {amount}.\n\n"
+        f"KarenBot will always disclose that it acts as my authorized "
+        f"representative. KarenBot may not accept binding settlements, waive my "
+        f"rights, make purchases, or cancel accounts without my separate, "
+        f"explicit approval. I may revoke this authorization at any time, "
+        f"effective immediately.\n\n"
+        f"All facts I have provided about this dispute are true to the best of "
+        f"my knowledge."
+    )
 
 
 def create_case(
@@ -129,8 +151,17 @@ def add_evidence(
 
 
 def grant_full_authorization(
-    session: Session, case: Case, *, max_requested_amount: Decimal | None = None
+    session: Session,
+    case: Case,
+    *,
+    max_requested_amount: Decimal | None = None,
+    signed_name: str | None = None,
+    signature_ip: str | None = None,
+    signature_user_agent: str | None = None,
 ) -> CaseAuthorization:
+    user = session.get(User, case.user_id)
+    company = session.get(Company, case.company_id)
+    assert user is not None and company is not None
     auth = CaseAuthorization(
         case_id=case.id,
         user_id=case.user_id,
@@ -138,6 +169,10 @@ def grant_full_authorization(
         authorized_claim_types=[case.category],
         max_requested_amount=max_requested_amount or case.requested_amount,
         authorization_version=2,
+        loa_text=build_loa_text(user, company, case),
+        signed_name=signed_name or user.display_name or user.email,
+        signature_ip=signature_ip,
+        signature_user_agent=signature_user_agent,
     )
     session.add(auth)
     session.add(
@@ -146,7 +181,7 @@ def grant_full_authorization(
             actor_id=str(case.user_id),
             case_id=case.id,
             event_type="authorization.granted",
-            event_payload={"actions": FULL_ACTIONS},
+            event_payload={"actions": FULL_ACTIONS, "signed_name": auth.signed_name},
         )
     )
     transition(session, case, CaseEvent.AUTHORIZATION_GRANTED, actor_type=ActorType.CUSTOMER)

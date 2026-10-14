@@ -29,6 +29,10 @@ ReplyKind = Literal[
     "request_evidence",
     "acknowledgement",
     "acceptance_confirmation",
+    # The company states it will only deal with the customer directly.
+    # Triggers respect-the-refusal mode: agent outreach stops for this
+    # company; KarenBot drafts messages for the customer to send personally.
+    "third_party_refusal",
     "other",
 ]
 

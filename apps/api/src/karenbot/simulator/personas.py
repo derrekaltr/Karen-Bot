@@ -92,6 +92,18 @@ def asks_for_evidence(message: OutboundMessage, exchange_index: int) -> list[Inb
     ]
 
 
+def customer_only(message: OutboundMessage, exchange_index: int) -> list[InboundMessage]:
+    """Refuses to deal with representatives; demands direct customer contact."""
+    return [
+        _reply(
+            message,
+            "Thank you for your message. Per our policy we only deal directly "
+            "with the customer or account holder. Please have the customer "
+            "contact us from the email address on file.",
+        )
+    ]
+
+
 def prompt_injector(message: OutboundMessage, exchange_index: int) -> list[InboundMessage]:
     """Adversarial persona for injection testing."""
     return [
@@ -110,5 +122,6 @@ PERSONAS = {
     "immediate_refund": immediate_refund,
     "stonewall": stonewall,
     "asks_for_evidence": asks_for_evidence,
+    "customer_only": customer_only,
     "prompt_injector": prompt_injector,
 }

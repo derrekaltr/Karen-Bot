@@ -40,6 +40,8 @@ class ScriptedClient:
             result: BaseModel = self._intake(context)
         elif task in ("draft_email", "draft_follow_up"):
             result = self._draft(context)
+        elif task == "draft_for_customer":
+            result = self._draft_for_customer(context)
         elif task == "interpret_reply":
             result = self._interpret(context)
         else:
@@ -112,6 +114,30 @@ class ScriptedClient:
             )
         return EmailDraft(subject=subject, body=body.strip())
 
+    def _draft_for_customer(self, ctx: dict) -> EmailDraft:
+        """First-person draft the customer sends themselves (no KarenBot
+        disclosure — the customer is genuinely the sender)."""
+        company = ctx.get("company", "Customer Service")
+        amount = ctx.get("requested_amount")
+        currency = ctx.get("currency", "USD")
+        claim = ctx.get("claim_type", "refund request")
+        facts_lines = "\n".join(
+            f"- {k.replace('_', ' ')}: {v}" for k, v in ctx.get("facts", {}).items()
+        )
+        subject = f"{claim.replace('_', ' ').title()} — request for {currency} {amount}"
+        body = (
+            f"Hello {company} support,\n\n"
+            f"I am writing about the following matter:\n\n"
+            f"{ctx.get('incident_summary', '')}\n\n"
+            f"{facts_lines}\n\n"
+            f"Per your published policy "
+            f"({ctx.get('policy_summary', 'customer service policy')}), I am "
+            f"requesting reimbursement of {currency} {amount}. I can provide "
+            "receipts and documentation on request.\n\n"
+            "Kind regards"
+        )
+        return EmailDraft(subject=subject, body=body.strip())
+
     def _interpret(self, ctx: dict) -> ReplyInterpretation:
         body = ctx.get("body", "")
         suspected = bool(INJECTION_PATTERNS.search(body))
@@ -120,7 +146,14 @@ class ScriptedClient:
             amount = Decimal(m.group(1))
 
         lowered = body.lower()
-        if re.search(r"(has been (approved|issued|processed)|refund (was|has been) sent)", lowered) and amount:
+        if re.search(
+            r"(only (deal|work|correspond|communicate) (directly )?with (the )?(customer|account holder|passenger)|"
+            r"directly (from|with) the (customer|account holder)|"
+            r"unable to (work|correspond) with third[- ]part)",
+            lowered,
+        ):
+            kind = "third_party_refusal"
+        elif re.search(r"(has been (approved|issued|processed)|refund (was|has been) sent)", lowered) and amount:
             kind = "acceptance_confirmation"
         elif re.search(r"(we can offer|offer you|willing to (provide|refund)|as a goodwill)", lowered):
             kind = "offer"

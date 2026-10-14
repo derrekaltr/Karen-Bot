@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from karenbot.agent import prompts
 from karenbot.agent.actions import (
     AcceptOffer,
+    DraftForCustomer,
     ProposedAction,
     RecordOffer,
     RequestCustomerInfo,
@@ -205,6 +206,8 @@ class AgentRuntime:
             self._handle_denial(session, case, version)
         elif kind == "acceptance_confirmation":
             self._mark_company_confirmed(session, case)
+        elif kind == "third_party_refusal":
+            self._enter_respect_the_refusal_mode(session, case, version)
         # acknowledgement / other: wait; the scheduler owns follow-up timing.
         return interpretation
 
@@ -320,6 +323,47 @@ class AgentRuntime:
         )
         _, decision = self._propose(session, action, prompt_version=version)
         return decision
+
+    def _enter_respect_the_refusal_mode(
+        self, session: Session, case: Case, prompt_version: str
+    ) -> None:
+        """The company only deals with customers directly. We honor that:
+        flag the company (policy engine will deny any further agent sends)
+        and draft a message in the customer's own voice for them to send."""
+        company = case.company
+        if not company.refuses_third_party:
+            company.refuses_third_party = True
+            session.add(
+                AuditEvent(
+                    actor_type=ActorType.SYSTEM.value,
+                    case_id=case.id,
+                    event_type="channel.third_party_refusal_recorded",
+                    event_payload={"company_id": str(company.id)},
+                )
+            )
+        channel = self._primary_channel(session, case)
+        context = {
+            **self._case_context_doc(session, case),
+            "for_customer_sending": True,
+            "send_to_address": channel.address,
+        }
+        draft, version = self._generate("draft_for_customer", context, EmailDraft)
+        self._propose(
+            session,
+            DraftForCustomer(
+                case_id=case.id,
+                purpose="assist_customer_direct_contact",
+                subject=draft.subject,
+                body=draft.body,
+                guidance=(
+                    f"{company.name} only works with customers directly, so this "
+                    f"email is written for you to send yourself. Send it from your "
+                    f"own email to {channel.address}. I'll help you interpret "
+                    "their reply."
+                ),
+            ),
+            prompt_version=version,
+        )
 
     def _mark_company_confirmed(self, session: Session, case: Case) -> None:
         outcome = session.scalars(

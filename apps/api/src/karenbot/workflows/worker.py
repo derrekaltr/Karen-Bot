@@ -27,7 +27,12 @@ class Worker:
         self.adapter = adapter
         self.runtime = runtime
         self.worker_id = worker_id or f"worker-{uuid.uuid4().hex[:8]}"
-        self.session_factory = get_session_factory()
+
+    @property
+    def session_factory(self):
+        # Late-bound so the worker follows the current configuration (tests
+        # and dev reconfiguration swap databases after construction).
+        return get_session_factory()
 
     # Each tick is one pass over: stuck recovery -> outbox -> jobs -> inbound.
     def tick(self) -> int:
@@ -113,6 +118,7 @@ class Worker:
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
     from karenbot.channels.mock_email import MockEmailAdapter
+    from karenbot.channels.registry import get_email_adapter
     from karenbot.llm.scripted import ScriptedClient
     from karenbot.simulator.personas import PERSONAS
 
@@ -122,7 +128,9 @@ def main() -> None:
         from karenbot.llm.anthropic_client import AnthropicClient
 
         llm = AnthropicClient()  # type: ignore[assignment]
-    adapter = MockEmailAdapter(responder=PERSONAS["lowball_then_accept"])
+    adapter = get_email_adapter(settings.email_provider)
+    if isinstance(adapter, MockEmailAdapter) and adapter.responder is None:
+        adapter.responder = PERSONAS["lowball_then_accept"]
     Worker(adapter, AgentRuntime(llm)).run_forever()
 
 

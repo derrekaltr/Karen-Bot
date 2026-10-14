@@ -13,6 +13,7 @@ from karenbot.agent.actions import (
     SENSITIVE_ACTION_TYPES,
     AcceptOffer,
     CloseCase,
+    DraftForCustomer,
     ProposedAction,
     RecommendEscalation,
     RecordOffer,
@@ -67,14 +68,23 @@ def evaluate(
     if isinstance(action, (SendMessage, RecommendEscalation)) and not ctx.company_targetable:
         deny.append(f"company_not_targetable:{ctx.company_size_class}")
 
+    # Respect-the-refusal: once a company says it only deals with customers
+    # directly, agent-sent contact stops. We assist the customer instead
+    # (draft_for_customer) — we never evade the preference.
+    if isinstance(action, (SendMessage, RecommendEscalation)) and ctx.company_refuses_third_party:
+        deny.append("company_refused_third_party_contact")
+
     # --- Action-specific checks ------------------------------------------
     if isinstance(action, SendMessage):
         _check_send_message(action, ctx, now, deny)
     elif isinstance(action, AcceptOffer):
         if action.binding:
             approval.append("binding_settlement_requires_customer_approval")
-    elif isinstance(action, (RecordOffer, RequestCustomerInfo, ScheduleFollowUp, CloseCase)):
-        pass  # internal actions: authorization check above is sufficient
+    elif isinstance(
+        action,
+        (RecordOffer, RequestCustomerInfo, ScheduleFollowUp, CloseCase, DraftForCustomer),
+    ):
+        pass  # internal/customer-facing actions: authorization check above suffices
     elif isinstance(action, RecommendEscalation):
         if action.target_support_channel_id not in ctx.verified_support_channel_ids:
             deny.append("escalation_target_not_verified")

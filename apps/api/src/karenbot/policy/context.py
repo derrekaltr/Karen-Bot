@@ -43,6 +43,9 @@ class CaseContext:
     # all. Small businesses and unclassified companies are never targetable.
     company_size_class: str
     company_targetable: bool
+    # Respect-the-refusal: the company has said it only deals with customers
+    # directly. Agent-sent messages are denied; draft_for_customer remains.
+    company_refuses_third_party: bool
     authorization: AuthorizationSnapshot | None
     verified_support_channel_ids: frozenset[uuid.UUID]
     evidence_ids: frozenset[uuid.UUID]
@@ -67,6 +70,7 @@ def build_case_context(session: Session, case: Case) -> CaseContext:
     company = session.get(Company, case.company_id)
     size_class = company.size_class if company else "unclassified"
     targetable = size_class in settings.targetable_size_classes
+    refuses_third_party = bool(company.refuses_third_party) if company else False
 
     auth_row = session.scalars(
         select(CaseAuthorization)
@@ -132,6 +136,7 @@ def build_case_context(session: Session, case: Case) -> CaseContext:
         case_status=case.status,
         company_size_class=size_class,
         company_targetable=targetable,
+        company_refuses_third_party=refuses_third_party,
         authorization=authorization,
         verified_support_channel_ids=channel_ids,
         evidence_ids=evidence_ids,

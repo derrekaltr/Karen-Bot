@@ -45,7 +45,8 @@ apps/api        FastAPI + SQLAlchemy + Alembic
     domain/     models, 16-state case machine, audit events
     policy/     deterministic policy engine (the safety core)
     agent/      ProposedAction contract, runtime, versioned prompts, eligibility
-    channels/   ChannelAdapter protocol, mock email (Gmail in M4, chat/voice later)
+    channels/   ChannelAdapter protocol + provider registry: mock email now;
+                Gmail, Outlook/Graph, and generic IMAP/SMTP in M4; chat/voice later
     workflows/  transactional outbox, scheduler, executor, worker loop
     llm/        provider abstraction: Anthropic + scripted
     simulator/  company personas (lowball, stonewall, injection attacker, ...)
@@ -77,6 +78,8 @@ authority at any time (kill switch); admins can block any case.
 |---|---|---|
 | `KARENBOT_DATABASE_URL` | local Postgres | SQLAlchemy URL |
 | `KARENBOT_LLM_PROVIDER` | `scripted` | `scripted` or `anthropic` |
+| `KARENBOT_EMAIL_PROVIDER` | `mock` | `mock`; M4 adds `gmail`, `outlook`, `imap_smtp` |
+| `KARENBOT_DEV_MODE` | `true` | enables `/dev` seed + simulator router; false in prod |
 | `KARENBOT_ANTHROPIC_API_KEY` | – | required for `anthropic` |
 | `KARENBOT_AGENT_MODEL` | `claude-sonnet-5-5` | drafting/reasoning model |
 | `KARENBOT_CLASSIFIER_MODEL` | `claude-haiku-4-5-20251001` | reply classification |

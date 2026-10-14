@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from karenbot.agent.actions import (
     AcceptOffer,
     CloseCase,
+    DraftForCustomer,
     ProposedAction,
     RecommendEscalation,
     RecordOffer,
@@ -26,6 +27,7 @@ from karenbot.domain.enums import (
     ActorType,
     CaseEvent,
     CaseStatus,
+    Channel,
     Counterparty,
     ExecutionStatus,
     PolicyDecisionType,
@@ -34,6 +36,7 @@ from karenbot.domain.models import (
     AgentAction,
     AuditEvent,
     Case,
+    Communication,
     Conversation,
     RecoveryOutcome,
     ScheduledJob,
@@ -180,6 +183,29 @@ def _execute(session: Session, row: AgentAction, action: ProposedAction) -> None
             transition(session, case, CaseEvent.OFFER_ACCEPTED, actor_type=ActorType.CUSTOMER)
         row.execution_status = ExecutionStatus.EXECUTED.value
 
+    elif isinstance(action, DraftForCustomer):
+        # Respect-the-refusal mode: the draft goes to the CUSTOMER's
+        # conversation for them to send personally. Never to the outbox.
+        conversation = _get_or_create_customer_conversation(session, case)
+        session.add(
+            Communication(
+                case_id=case.id,
+                conversation_id=conversation.id,
+                channel=Channel.CHAT.value,
+                direction="outbound",
+                counterparty=Counterparty.CUSTOMER.value,
+                subject=action.subject,
+                body=action.body,
+                sent_at=utcnow(),
+                classification={
+                    "draft_for_customer": True,
+                    "guidance": action.guidance,
+                    "agent_action_id": str(row.id),
+                },
+            )
+        )
+        row.execution_status = ExecutionStatus.EXECUTED.value
+
     elif isinstance(action, RecommendEscalation):
         if case.status == CaseStatus.NEGOTIATING.value:
             transition(
@@ -203,6 +229,25 @@ def _execute(session: Session, row: AgentAction, action: ProposedAction) -> None
 
     else:
         assert_never(action)
+
+
+def _get_or_create_customer_conversation(session: Session, case: Case) -> Conversation:
+    conversation = session.scalars(
+        select(Conversation).where(
+            Conversation.case_id == case.id,
+            Conversation.counterparty == Counterparty.CUSTOMER.value,
+            Conversation.active.is_(True),
+        )
+    ).first()
+    if conversation is None:
+        conversation = Conversation(
+            case_id=case.id,
+            channel=Channel.CHAT.value,
+            counterparty=Counterparty.CUSTOMER.value,
+        )
+        session.add(conversation)
+        session.flush()
+    return conversation
 
 
 def _get_or_create_company_conversation(

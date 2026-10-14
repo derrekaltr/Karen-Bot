@@ -53,10 +53,16 @@ mechanically onto Temporal.
 
 `channels/base.py` defines `ChannelAdapter` (send / fetch_inbound /
 find_by_idempotency_key). Every message in either direction on any channel is
-a `communications` row tied to a `conversations` thread. Implemented:
-`MockEmailAdapter` (+ scriptable company personas in `simulator/`). Planned:
-`GmailAdapter` (M4), `WebChatAdapter` (M3), `VoiceAdapter` (post-MVP; a call
-becomes a transcript in the same tables).
+a `communications` row tied to a `conversations` thread.
+
+**Email is multi-provider by design** — never Gmail-only. Providers register
+in `channels/registry.py` and are selected per connected account
+(`connected_accounts.provider`): `mock` (implemented), and in M4 `gmail`
+(Gmail API), `outlook` (Microsoft Graph: Outlook/Hotmail/M365), and
+`imap_smtp` (generic IMAP/SMTP for Yahoo, iCloud, Fastmail, custom domains —
+the long tail). Adding a provider must never touch the agent, policy, or
+workflow layers. Also planned: `WebChatAdapter` (M3), `VoiceAdapter`
+(post-MVP; a call becomes a transcript in the same tables).
 
 Inbound mail that cannot be matched to a known thread is routed to human
 review (`inbound.unmatched` audit event) — never guessed onto a case.

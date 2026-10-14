@@ -71,6 +71,18 @@ class AcceptOffer(ActionBase):
     risk_level: RiskLevel = "high"
 
 
+class DraftForCustomer(ActionBase):
+    """Respect-the-refusal mode: when a company will only deal with the
+    customer directly, KarenBot stops agent-sent outreach and instead drafts
+    a message for the customer to send personally. The draft is written in
+    the customer's own voice (they are genuinely the sender)."""
+
+    action: Literal["draft_for_customer"] = "draft_for_customer"
+    subject: str
+    body: str
+    guidance: str | None = None  # where/how the customer should send it
+
+
 class RecommendEscalation(ActionBase):
     action: Literal["recommend_escalation"] = "recommend_escalation"
     target_support_channel_id: uuid.UUID
@@ -84,7 +96,14 @@ class CloseCase(ActionBase):
 
 
 ProposedAction = Annotated[
-    SendMessage | RequestCustomerInfo | ScheduleFollowUp | RecordOffer | AcceptOffer | RecommendEscalation | CloseCase,
+    SendMessage
+    | RequestCustomerInfo
+    | ScheduleFollowUp
+    | RecordOffer
+    | AcceptOffer
+    | DraftForCustomer
+    | RecommendEscalation
+    | CloseCase,
     Field(discriminator="action"),
 ]
 

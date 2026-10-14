@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="KARENBOT_", env_file=".env", extra="ignore")
 
     database_url: str = "postgresql+psycopg://karenbot:karenbot@localhost:5432/karenbot"
+    # Email provider for outbound/inbound mail. Multi-provider by design:
+    # mock (dev) | gmail | outlook | imap_smtp — see channels/registry.py.
+    email_provider: str = "mock"
     anthropic_api_key: str = ""
     llm_provider: str = "scripted"  # "scripted" | "anthropic"
     agent_model: str = "claude-sonnet-5-5"
@@ -30,6 +33,10 @@ class Settings(BaseSettings):
     # Worker
     worker_poll_seconds: float = 2.0
     outbox_sending_lease_seconds: int = 300
+
+    # Enables the /dev router (seed data, simulated company replies). Must be
+    # false in any deployed environment.
+    dev_mode: bool = True
 
     @field_validator("targetable_size_classes")
     @classmethod

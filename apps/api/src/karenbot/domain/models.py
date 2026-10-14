@@ -84,6 +84,10 @@ class Company(TimestampMixin, Base):
     # Defaults to unclassified, which is NOT targetable until a human review
     # sets it. Mom-and-pop businesses are never targeted.
     size_class: Mapped[str] = mapped_column(String(40), default="unclassified")
+    # Respect-the-refusal: set when the company states it only deals with
+    # customers directly. Agent-sent outreach stops; KarenBot switches to
+    # drafting messages the customer sends personally. Never evaded.
+    refuses_third_party: Mapped[bool] = mapped_column(default=False)
 
     support_channels: Mapped[list["SupportChannel"]] = relationship(back_populates="company")
     policies: Mapped[list["CompanyPolicy"]] = relationship(back_populates="company")
@@ -173,6 +177,13 @@ class CaseAuthorization(TimestampMixin, Base):
     authorization_version: Mapped[int] = mapped_column(default=1)
     consent_timestamp: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=utcnow)
     revoked_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
+    # Letter of Authorization: the signed text granting agency, plus
+    # signature provenance. This is the defense file for any
+    # "who authorized you?" challenge — see docs/legal-risk.md.
+    loa_text: Mapped[str | None] = mapped_column(Text)
+    signed_name: Mapped[str | None] = mapped_column(String(200))
+    signature_ip: Mapped[str | None] = mapped_column(String(64))
+    signature_user_agent: Mapped[str | None] = mapped_column(String(400))
 
     case: Mapped[Case] = relationship(back_populates="authorizations")
 
@@ -324,6 +335,11 @@ class RecoveryOutcome(TimestampMixin, Base):
         String(40), default=VerificationStatus.UNVERIFIED.value
     )
     verified_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
+    # Fee attribution: success fees apply to recoveries obtained as a result
+    # of KarenBot's outreach, including when the company settles directly
+    # with the customer to bypass the agent (see docs/legal-risk.md §1.1).
+    # Values: karenbot_outreach | direct_company_contact | unknown.
+    attribution: Mapped[str] = mapped_column(String(40), default="karenbot_outreach")
     notes: Mapped[str | None] = mapped_column(Text)
 
 
