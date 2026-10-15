@@ -235,6 +235,29 @@ class TickOut(BaseModel):
     persona: str
 
 
+def _seed_research_channels(session, company, existing_addresses) -> None:
+    """Load researched real-world channels as UNVERIFIED rows (policy engine
+    refuses to send until a human verifies each in the admin console)."""
+    from karenbot.data_support_channels import RESEARCH_CHANNELS
+
+    for channel_type, address, purpose, is_escalation, source in RESEARCH_CHANNELS.get(
+        company.name, []
+    ):
+        if address in existing_addresses:
+            continue
+        session.add(
+            SupportChannel(
+                company_id=company.id,
+                channel=channel_type,
+                address=address,
+                purpose=purpose,
+                is_escalation=is_escalation,
+                verified=False,
+                verification_source_url=source,
+            )
+        )
+
+
 def build_router(
     get_adapter: "Callable[[], MockEmailAdapter]", get_worker: "Callable[[], Worker]"
 ) -> APIRouter:
@@ -292,6 +315,7 @@ def build_router(
                         select(CompanyPolicy).where(CompanyPolicy.company_id == company.id)
                     )
                 }
+                _seed_research_channels(session, company, existing_channels)
                 if spec.get("channel") and spec["channel"] in existing_channels:
                     continue
                 if spec.get("channel") and spec["policy_type"] in existing_policies:

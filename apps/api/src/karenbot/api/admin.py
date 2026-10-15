@@ -142,6 +142,96 @@ def get_kill_switch(
     return {"kill_switch_active": controls.kill_switch_active(db)}
 
 
+class ChannelOut(BaseModel):
+    id: uuid.UUID
+    company_name: str
+    channel: str
+    address: str
+    purpose: str
+    is_escalation: bool
+    verified: bool
+    verification_source_url: str | None
+
+
+@router.get("/channels", response_model=list[ChannelOut])
+def list_channels(
+    verified: bool | None = None,
+    admin: str = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> list[ChannelOut]:
+    from karenbot.domain.models import SupportChannel
+
+    query = select(SupportChannel).where(SupportChannel.active.is_(True))
+    if verified is not None:
+        query = query.where(SupportChannel.verified.is_(verified))
+    out = []
+    for ch in db.scalars(query):
+        company = db.get(Company, ch.company_id)
+        out.append(
+            ChannelOut(
+                id=ch.id,
+                company_name=company.name if company else "?",
+                channel=ch.channel,
+                address=ch.address,
+                purpose=ch.purpose,
+                is_escalation=ch.is_escalation,
+                verified=ch.verified,
+                verification_source_url=ch.verification_source_url,
+            )
+        )
+    out.sort(key=lambda c: (c.verified, c.company_name))
+    return out
+
+
+@router.post("/channels/{channel_id}/verify")
+def verify_channel(
+    channel_id: uuid.UUID,
+    admin: str = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Human attestation that the address/URL was checked against its
+    source. Only verified channels are ever sendable (policy-enforced)."""
+    from karenbot.domain.models import SupportChannel, utcnow
+
+    channel = db.get(SupportChannel, channel_id)
+    if channel is None:
+        raise HTTPException(404, "channel not found")
+    channel.verified = True
+    channel.verified_at = utcnow()
+    db.add(
+        AuditEvent(
+            actor_type="admin",
+            actor_id=admin,
+            event_type="channel.verified",
+            event_payload={"channel_id": str(channel_id), "address": channel.address},
+        )
+    )
+    return {"verified": True, "address": channel.address}
+
+
+@router.post("/channels/{channel_id}/deactivate")
+def deactivate_channel(
+    channel_id: uuid.UUID,
+    admin: str = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    from karenbot.domain.models import SupportChannel
+
+    channel = db.get(SupportChannel, channel_id)
+    if channel is None:
+        raise HTTPException(404, "channel not found")
+    channel.active = False
+    db.add(
+        AuditEvent(
+            actor_type="admin",
+            actor_id=admin,
+            event_type="channel.deactivated",
+            event_payload={"channel_id": str(channel_id), "address": channel.address},
+        )
+    )
+    return {"active": False}
+
+
 class InterventionItem(BaseModel):
     kind: str
     case_id: uuid.UUID | None

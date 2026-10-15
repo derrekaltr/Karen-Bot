@@ -129,3 +129,19 @@ def test_intervention_queue_and_metrics(client, db):
     with db() as session:
         case = session.get(Case, uuid.UUID(case_id))
         assert case is not None
+
+
+def test_channel_verification_flow(client, db):
+    client.post("/dev/seed")
+    channels = client.get("/admin/channels?verified=false", headers=ADMIN).json()
+    assert channels, "research channels should seed unverified"
+    target = next(c for c in channels if c["company_name"] == "Delta Air Lines")
+    assert target["verification_source_url"]
+
+    r = client.post(f"/admin/channels/{target['id']}/verify", headers=ADMIN)
+    assert r.json()["verified"] is True
+    now_verified = client.get("/admin/channels?verified=true", headers=ADMIN).json()
+    assert any(c["id"] == target["id"] for c in now_verified)
+
+    r = client.post(f"/admin/channels/{target['id']}/deactivate", headers=ADMIN)
+    assert r.json()["active"] is False
