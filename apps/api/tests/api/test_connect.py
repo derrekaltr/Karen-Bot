@@ -109,9 +109,26 @@ def test_oauth_callback_stores_encrypted_tokens(db, monkeypatch):
     client = TestClient(app)
     client.post("/dev/seed")
 
-    import base64
+    from karenbot.db.session import get_session_factory as _gsf
+    from karenbot.domain.models import User as _User
 
-    state = base64.urlsafe_b64encode(b"dana@example.com").decode()
+    with _gsf()() as session:
+        from sqlalchemy import select as _select
+
+        dana_id = session.scalars(
+            _select(_User.id).where(_User.email == "dana@example.com")
+        ).one()
+
+    # Forged/garbage state is rejected.
+    r = client.get("/connect-test/gmail/callback?code=auth-code&state=forged")
+    assert r.status_code == 400
+
+    # Wrong-provider state is rejected.
+    wrong = connect.make_oauth_state(dana_id, "outlook")
+    r = client.get(f"/connect-test/gmail/callback?code=auth-code&state={wrong}")
+    assert r.status_code == 400
+
+    state = connect.make_oauth_state(dana_id, "gmail")
     r = client.get(f"/connect-test/gmail/callback?code=auth-code&state={state}")
     assert r.status_code == 200, r.text
     assert r.json()["connected"] == "dana@gmail.example"

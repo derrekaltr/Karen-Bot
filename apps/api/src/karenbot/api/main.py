@@ -12,7 +12,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -60,14 +60,10 @@ def get_db() -> Iterator[Session]:
         session.close()
 
 
-def current_user(
-    x_user_email: str = Header(..., description="Dev auth stub"),
-    db: Session = Depends(get_db),
-) -> User:
-    user = db.scalars(select(User).where(User.email == x_user_email)).first()
-    if user is None:
-        raise HTTPException(401, "unknown user — call POST /dev/seed first")
-    return user
+# Clerk session JWT auth, with the X-User-Email fallback in dev mode only.
+from karenbot.api.auth import current_user_factory  # noqa: E402
+
+current_user = current_user_factory(get_db)
 
 
 def _llm():

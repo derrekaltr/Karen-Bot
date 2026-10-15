@@ -1,13 +1,14 @@
 """Connected-accounts API: OAuth connect flows (Gmail, Outlook) and
 credential-based IMAP/SMTP setup.
 
-Dev-stub state handling: the OAuth `state` carries the signed-in user's email
-(base64). Before production this must become a server-side random nonce bound
-to the session (CSRF), and the flow must run under Clerk-authenticated
-sessions.
+CSRF protection: the OAuth `state` is a Fernet-encrypted payload bound to the
+authenticated user id with a short expiry and a random nonce. The callback
+decrypts and validates it; a forged or replayed-after-expiry state is
+rejected.
 """
 
-import base64
+import secrets
+import time
 import uuid
 from datetime import datetime
 from typing import Any
@@ -20,7 +21,32 @@ from sqlalchemy.orm import Session
 
 from karenbot.channels import oauth
 from karenbot.domain.models import ConnectedAccount, User, utcnow
-from karenbot.security.crypto import encrypt_json
+from karenbot.security.crypto import decrypt_json, encrypt_json
+
+STATE_TTL_SECONDS = 600
+
+
+def make_oauth_state(user_id: uuid.UUID, provider: str) -> str:
+    return encrypt_json(
+        {
+            "user_id": str(user_id),
+            "provider": provider,
+            "nonce": secrets.token_urlsafe(16),
+            "exp": time.time() + STATE_TTL_SECONDS,
+        }
+    )
+
+
+def parse_oauth_state(state: str, provider: str) -> uuid.UUID:
+    try:
+        payload = decrypt_json(state)
+    except Exception as exc:
+        raise HTTPException(400, "invalid oauth state") from exc
+    if payload.get("provider") != provider:
+        raise HTTPException(400, "oauth state provider mismatch")
+    if time.time() > float(payload.get("exp", 0)):
+        raise HTTPException(400, "oauth state expired — restart the connect flow")
+    return uuid.UUID(payload["user_id"])
 
 
 class ConnectedAccountOut(BaseModel):
@@ -108,7 +134,7 @@ def build_router(http: httpx.Client | None = None) -> APIRouter:
     ) -> dict:
         if provider not in oauth.PROVIDERS:
             raise HTTPException(404, f"unknown provider '{provider}'")
-        state = base64.urlsafe_b64encode(user.email.encode()).decode()
+        state = make_oauth_state(user.id, provider)
         try:
             return {"auth_url": oauth.build_auth_url(provider, state)}
         except RuntimeError as exc:
@@ -118,8 +144,8 @@ def build_router(http: httpx.Client | None = None) -> APIRouter:
     def callback(provider: str, code: str, state: str, db: Session = Depends(get_db)) -> dict:
         if provider not in oauth.PROVIDERS:
             raise HTTPException(404, f"unknown provider '{provider}'")
-        email_from_state = base64.urlsafe_b64decode(state.encode()).decode()
-        user = db.scalars(select(User).where(User.email == email_from_state)).first()
+        user_id = parse_oauth_state(state, provider)
+        user = db.get(User, user_id)
         if user is None:
             raise HTTPException(400, "unknown state")
         tokens = oauth.exchange_code(provider, code, client)

@@ -37,6 +37,15 @@ class Settings(BaseSettings):
     # Admin API token (dev default only works in dev mode).
     admin_token: str = "dev-admin"
 
+    # Clerk authentication. The publishable key also encodes the frontend API
+    # domain (used to derive the JWKS URL); jwks_url overrides if set.
+    clerk_publishable_key: str = ""
+    clerk_secret_key: str = ""
+    clerk_jwks_url: str = ""
+    # Dev-mode fallback: allow the X-User-Email header instead of a session
+    # JWT. Hard-disabled outside dev mode regardless of this setting.
+    allow_dev_auth: bool = True
+
     # Observability (optional).
     sentry_dsn: str = ""
 
