@@ -62,7 +62,8 @@ def test_imap_connect_list_revoke(client):
 
 def test_oauth_start_requires_configured_client(client, monkeypatch):
     _seed(client)
-    monkeypatch.delenv("KARENBOT_GOOGLE_CLIENT_ID", raising=False)
+    # Force-empty (delenv is not enough: a real key may live in .env).
+    monkeypatch.setenv("KARENBOT_GOOGLE_CLIENT_ID", "")
     from karenbot.config import get_settings
 
     get_settings.cache_clear()

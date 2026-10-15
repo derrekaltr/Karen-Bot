@@ -64,7 +64,7 @@ class ConnectedAccount(TimestampMixin, Base):
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
     provider: Mapped[str] = mapped_column(String(40))  # "gmail", later "outlook"
     provider_account_id: Mapped[str] = mapped_column(String(320))
-    encrypted_token_reference: Mapped[str | None] = mapped_column(String(500))
+    encrypted_token_reference: Mapped[str | None] = mapped_column(Text)
     granted_scopes: Mapped[list[str]] = mapped_column(JSONVariant, default=list)
     status: Mapped[str] = mapped_column(String(40), default="active")
     revoked_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
