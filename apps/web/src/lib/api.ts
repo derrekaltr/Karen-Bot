@@ -19,6 +19,16 @@ export function setSessionTokenGetter(getter: SessionTokenGetter | null): void {
   sessionTokenGetter = getter;
 }
 
+export interface Health {
+  status: string;
+  /** True while outbound email goes to the simulator, not real companies. */
+  sandbox: boolean;
+}
+
+export function getHealth(): Promise<Health> {
+  return request("/health");
+}
+
 export async function authHeaders(): Promise<Record<string, string>> {
   if (sessionTokenGetter) {
     try {

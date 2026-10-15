@@ -23,6 +23,7 @@ import {
   listCommunications,
   removeCaseEvidence,
   revokeCase,
+  getHealth,
   scanCaseEvidence,
   type CaseEvidenceItem,
   type EvidenceGroup,
@@ -59,6 +60,13 @@ export function CaseDetail({ caseId }: { caseId: string }) {
   const [loaText, setLoaText] = useState<string | null>(null);
   const [evidenceScanning, setEvidenceScanning] = useState(false);
   const [scanResult, setScanResult] = useState<EvidenceScanResult | null>(null);
+  const [sandbox, setSandbox] = useState(false);
+
+  useEffect(() => {
+    getHealth()
+      .then((h) => setSandbox(h.sandbox))
+      .catch(() => setSandbox(false));
+  }, []);
   const [showAllEvidence, setShowAllEvidence] = useState(false);
   const [evidenceOnFile, setEvidenceOnFile] = useState<CaseEvidenceItem[]>([]);
   const [expandedEvidence, setExpandedEvidence] = useState<Set<string>>(
@@ -261,12 +269,25 @@ export function CaseDetail({ caseId }: { caseId: string }) {
                 Eligibility basis: {caseRecord.eligibility_basis}
               </p>
             )}
+            {sandbox && (
+              <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+                Sandbox mode: no real emails are sent. Outbound messages go
+                to a simulated company — use &quot;Simulate company
+                response&quot; to play out the negotiation. Statuses describe
+                Karen&apos;s workflow, not real-company contact.
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <StatusBadge status={caseRecord.status} />
             {caseRecord.contact_mode === "assist" && (
               <span className="rounded-full border border-slate-300 bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-ink-600">
                 Assist mode
+              </span>
+            )}
+            {sandbox && (
+              <span className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+                Sandbox
               </span>
             )}
           </div>

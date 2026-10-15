@@ -95,7 +95,13 @@ _worker = Worker(_adapter, _runtime, worker_id="api-dev-worker")
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok"}
+    settings = get_settings()
+    return {
+        "status": "ok",
+        # True while outbound email goes to the in-process simulator
+        # instead of real companies. The UI shows a sandbox banner.
+        "sandbox": settings.email_provider == "mock",
+    }
 
 
 # --------------------------------------------------------------------------
