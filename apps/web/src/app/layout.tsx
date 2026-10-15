@@ -1,3 +1,5 @@
+import { ClerkProvider } from "@clerk/nextjs";
+import { ClerkTokenBridge } from "@/components/ClerkTokenBridge";
 import type { Metadata } from "next";
 import "./globals.css";
 
@@ -12,7 +14,12 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body className="min-h-dvh">{children}</body>
+      <body className="min-h-dvh">
+        <ClerkProvider>
+          <ClerkTokenBridge />
+          {children}
+        </ClerkProvider>
+      </body>
     </html>
   );
 }

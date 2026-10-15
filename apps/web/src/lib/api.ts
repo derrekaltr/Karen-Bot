@@ -1,11 +1,35 @@
 /**
  * Typed fetch client for the KarenBot FastAPI backend.
  *
- * Auth is a dev stub: every request carries `X-User-Email`. Call `seed()`
- * once (e.g. on dashboard mount) to create the demo user + companies.
+ * Auth: when a Clerk session is active, requests carry its Bearer token
+ * (register the getter via `setSessionTokenGetter` — see
+ * components/ClerkTokenBridge). Without one, dev mode falls back to the
+ * `X-User-Email` header. Call `seed()` once (e.g. on dashboard mount) to
+ * create the demo user + companies.
  */
 
 export const DEV_USER_EMAIL = "dana@example.com";
+
+type SessionTokenGetter = () => Promise<string | null>;
+
+let sessionTokenGetter: SessionTokenGetter | null = null;
+
+/** Wired by ClerkTokenBridge inside the ClerkProvider tree. */
+export function setSessionTokenGetter(getter: SessionTokenGetter | null): void {
+  sessionTokenGetter = getter;
+}
+
+export async function authHeaders(): Promise<Record<string, string>> {
+  if (sessionTokenGetter) {
+    try {
+      const token = await sessionTokenGetter();
+      if (token) return { Authorization: `Bearer ${token}` };
+    } catch {
+      // fall through to the dev header
+    }
+  }
+  return { "X-User-Email": DEV_USER_EMAIL };
+}
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -157,7 +181,7 @@ async function request<T>(
   const response = await fetch(`${BASE_URL}${path}`, {
     method: init?.method ?? "GET",
     headers: {
-      "X-User-Email": DEV_USER_EMAIL,
+      ...(await authHeaders()),
       ...(init?.body !== undefined
         ? { "Content-Type": "application/json" }
         : {}),

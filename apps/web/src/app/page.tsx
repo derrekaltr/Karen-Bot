@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 import { ButtonLink } from "@/components/Button";
 import { Card } from "@/components/Card";
 
@@ -31,10 +32,25 @@ export default function LandingPage() {
           <Link href="/" className="text-lg font-bold tracking-tight">
             Karen<span className="text-accent-600">Bot</span>
           </Link>
-          <nav aria-label="Main">
-            <ButtonLink href="/dashboard" variant="secondary">
-              Dashboard
-            </ButtonLink>
+          <nav aria-label="Main" className="flex items-center gap-3">
+            <Show when="signed-out">
+              <SignInButton>
+                <button className="inline-flex min-h-11 items-center rounded-lg px-4 text-sm font-semibold text-slate-700 hover:text-slate-900">
+                  Sign in
+                </button>
+              </SignInButton>
+              <SignUpButton>
+                <button className="inline-flex min-h-11 items-center rounded-lg bg-accent-600 px-4 text-sm font-semibold text-white hover:bg-accent-700">
+                  Get started
+                </button>
+              </SignUpButton>
+            </Show>
+            <Show when="signed-in">
+              <ButtonLink href="/dashboard" variant="secondary">
+                Dashboard
+              </ButtonLink>
+              <UserButton />
+            </Show>
           </nav>
         </div>
       </header>
