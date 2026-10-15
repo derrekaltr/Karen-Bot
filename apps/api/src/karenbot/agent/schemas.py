@@ -16,6 +16,9 @@ class IntakeResult(BaseModel):
     missing_info: list[str] = Field(default_factory=list)
     suggested_claim_type: str
     incident_summary: str
+    # The amount the customer appears to be owed, extracted from their own
+    # words (never invented). None when they didn't state one.
+    inferred_requested_amount: Decimal | None = None
 
 
 class EmailDraft(BaseModel):

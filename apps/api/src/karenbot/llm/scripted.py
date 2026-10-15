@@ -53,11 +53,19 @@ class ScriptedClient:
         facts: dict[str, str] = {}
         if m := re.search(r"\b([A-Z]{2}\s?\d{2,4})\b", description):
             facts["flight_number"] = m.group(1)
-        if m := re.search(r"\$\s?(\d+(?:\.\d{2})?)", description):
-            facts["claimed_expenses"] = m.group(1)
+        amounts = [
+            Decimal(a.replace(",", ""))
+            for a in re.findall(r"\$\s?([\d,]+(?:\.\d{2})?)", description)
+        ]
+        inferred = max(amounts) if amounts else None
+        if inferred is not None:
+            facts["stated_amount"] = str(inferred)
         missing = []
-        if not ctx.get("requested_amount"):
-            missing.append("What total amount are you requesting?")
+        if not ctx.get("requested_amount") and inferred is None:
+            missing.append(
+                "Roughly how much is this worth to you? A ballpark is fine — "
+                "I can proceed without it and push for the best outcome."
+            )
         if not ctx.get("evidence_count"):
             missing.append("Please upload receipts or documentation for your expenses.")
         return IntakeResult(
@@ -65,6 +73,7 @@ class ScriptedClient:
             missing_info=missing,
             suggested_claim_type=ctx.get("category", "general_refund"),
             incident_summary=description[:300],
+            inferred_requested_amount=inferred,
         )
 
     def _draft(self, ctx: dict) -> EmailDraft:
@@ -80,6 +89,7 @@ class ScriptedClient:
             else ""
         )
         facts_lines = "\n".join(f"- {k.replace('_', ' ')}: {v}" for k, v in facts.items())
+        amount_phrase = f"{currency} {amount}" if amount else "a fair resolution"
         if ctx.get("is_follow_up"):
             subject = f"Re: {claim.replace('_', ' ').title()} — follow-up"
             body = (
@@ -89,7 +99,7 @@ class ScriptedClient:
                 + (
                     f"The previously offered amount does not reflect the documented expenses. "
                     f"Based on the evidence provided and your published policy, we request "
-                    f"{currency} {amount}.\n\n"
+                    f"{amount_phrase}.\n\n"
                     if amount
                     else "We would appreciate an update on the status of this request.\n\n"
                 )
@@ -99,20 +109,21 @@ class ScriptedClient:
                 "Kind regards,\nKarenBot on behalf of the customer"
             )
         else:
-            subject = f"{claim.replace('_', ' ').title()} — request for {currency} {amount}"
+            title = claim.replace("_", " ").title()
+            subject = f"{title} — request for {currency} {amount}" if amount else title
             policy_summary = ctx.get("policy_summary")
             if policy_summary:
                 ask_line = (
                     f"Per your published policy ({policy_summary}), "
-                    f"we request reimbursement of {currency} {amount}."
+                    f"we request reimbursement of {amount_phrase}."
                 )
             else:
                 # Goodwill basis: never assert a policy or entitlement that
                 # does not exist.
                 ask_line = (
                     f"Given the documented circumstances, we are requesting "
-                    f"{currency} {amount} as a fair resolution, which we hope "
-                    f"you will consider as a matter of customer goodwill."
+                    f"{amount_phrase}, which we hope you will consider as a "
+                    f"matter of customer goodwill."
                 )
             body = (
                 f"Hello {company} support,\n\n"

@@ -127,7 +127,6 @@ export function GuidedIntake() {
   const [category, setCategory] = useState("");
   const [customCategory, setCustomCategory] = useState("");
   const [description, setDescription] = useState("");
-  const [amount, setAmount] = useState("");
 
   // Step 2 state
   const [caseId, setCaseId] = useState<string | null>(null);
@@ -248,17 +247,15 @@ export function GuidedIntake() {
     }
     setError(null);
     setBusy(true);
-    const parsedAmount = amount.trim() === "" ? null : Number(amount);
-    say(
-      "you",
-      `${description.trim()}${parsedAmount !== null ? ` (about $${parsedAmount})` : ""}`,
-    );
+    say("you", description.trim());
     try {
       const created = await createCase({
         company_name: companyName,
         category: effectiveCategory,
         description: description.trim(),
-        requested_amount: parsedAmount,
+        // Karen infers the amount from the story (and asks for a ballpark
+        // only if she can't).
+        requested_amount: null,
         // Only unknown companies need the user-picked industry hint.
         ...(selectedCompany === null
           ? { company_industry: otherIndustry }
@@ -562,10 +559,10 @@ export function GuidedIntake() {
                   {SMALL_BUSINESS_NOTE}
                 </p>
               )}
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-4">
                 <div className="flex flex-col gap-1.5">
                   <label htmlFor="category" className="text-sm font-medium">
-                    Category
+                    What are you after?
                   </label>
                   <select
                     id="category"
@@ -580,21 +577,6 @@ export function GuidedIntake() {
                     ))}
                     <option value={CUSTOM_CATEGORY}>Something else…</option>
                   </select>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label htmlFor="amount" className="text-sm font-medium">
-                    Amount owed (USD)
-                  </label>
-                  <input
-                    id="amount"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="0.00"
-                    value={amount}
-                    onChange={(event) => setAmount(event.target.value)}
-                    className={inputClasses}
-                  />
                 </div>
               </div>
               {category === CUSTOM_CATEGORY && (

@@ -125,6 +125,11 @@ class AgentRuntime:
             **result.facts,
             "incident_summary": result.incident_summary,
         }
+        # The intake form no longer asks for an amount; adopt the one the
+        # customer stated in their own words, if any.
+        if case.requested_amount is None and result.inferred_requested_amount is not None:
+            case.requested_amount = result.inferred_requested_amount
+            case.facts = {**case.facts, "amount_source": "stated_in_description"}
         if result.missing_info:
             self._propose(
                 session,
@@ -302,6 +307,11 @@ class AgentRuntime:
         requested = case.requested_amount or Decimal("0")
         offered = interpretation.offer_amount or Decimal("0")
         acceptable = requested > 0 and offered >= requested * ACCEPT_RATIO
+        # No target amount on the case: Karen can't judge adequacy, so any
+        # concrete offer goes to the customer for the call (the AcceptOffer
+        # proposal is approval-gated, surfacing it in the UI).
+        if requested == 0 and offered > 0:
+            acceptable = True
 
         if acceptable:
             outcome = session.scalars(
