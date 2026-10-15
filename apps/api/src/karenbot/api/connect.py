@@ -136,7 +136,9 @@ def build_router(http: httpx.Client | None = None) -> APIRouter:
             raise HTTPException(404, f"unknown provider '{provider}'")
         state = make_oauth_state(user.id, provider)
         try:
-            return {"auth_url": oauth.build_auth_url(provider, state)}
+            return {
+                "auth_url": oauth.build_auth_url(provider, state, login_hint=user.email)
+            }
         except RuntimeError as exc:
             raise HTTPException(503, str(exc)) from exc
 

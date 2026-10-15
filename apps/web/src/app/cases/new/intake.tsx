@@ -7,6 +7,7 @@ import { Card } from "@/components/Card";
 import {
   ApiError,
   addEvidence,
+  scanCaseEvidence,
   authorizeCase,
   completeIntake,
   createCase,
@@ -303,6 +304,37 @@ export function GuidedIntake() {
       say("karen", "Logged it. Anything else, or are we done here?");
       setEvidenceSummary("");
       setEvidenceCount((n) => n + 1);
+    } catch (err) {
+      failWith(err);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function scanEmailForEvidence() {
+    if (caseId === null) return;
+    setError(null);
+    setBusy(true);
+    say("you", "Scan my email for proof.");
+    try {
+      const found = await scanCaseEvidence(caseId);
+      if (found.length === 0) {
+        say(
+          "karen",
+          "I didn't find anything matching in your inbox. You can add " +
+            "evidence manually, or we can proceed without it.",
+        );
+      } else {
+        for (const item of found) {
+          say("karen", `Found and attached: ${item.summary}`);
+        }
+        say(
+          "karen",
+          `That's ${found.length} piece${found.length === 1 ? "" : "s"} of ` +
+            "evidence from your inbox. Anything else, or are we done here?",
+        );
+        setEvidenceCount((n) => n + found.length);
+      }
     } catch (err) {
       failWith(err);
     } finally {
@@ -670,6 +702,15 @@ export function GuidedIntake() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-3">
+                <Button
+                  variant="secondary"
+                  disabled={busy}
+                  onClick={() => {
+                    void scanEmailForEvidence();
+                  }}
+                >
+                  {busy ? "Scanning…" : "Scan my email for proof"}
+                </Button>
                 <Button type="submit" variant="secondary" disabled={busy}>
                   Add evidence
                 </Button>

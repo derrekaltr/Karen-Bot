@@ -69,7 +69,7 @@ def redirect_uri(provider_key: str) -> str:
     return f"{get_settings().oauth_redirect_base}/connect/{provider_key}/callback"
 
 
-def build_auth_url(provider_key: str, state: str) -> str:
+def build_auth_url(provider_key: str, state: str, login_hint: str | None = None) -> str:
     provider = PROVIDERS[provider_key]
     client_id, _ = provider.client()
     if not client_id:
@@ -83,6 +83,10 @@ def build_auth_url(provider_key: str, state: str) -> str:
         "access_type": "offline",  # Google: request a refresh token
         "prompt": "consent",
     }
+    if login_hint:
+        # The mailbox is almost always the account the user signed in with:
+        # preselect it so connecting is one click, no typing.
+        params["login_hint"] = login_hint
     return f"{provider.auth_url}?{urllib.parse.urlencode(params)}"
 
 
