@@ -421,10 +421,11 @@ def revoke(
 # Dev simulator (local development only)
 # --------------------------------------------------------------------------
 
-from karenbot.api import admin, connect  # noqa: E402
+from karenbot.api import admin, banking, connect  # noqa: E402
 
 app.include_router(connect.build_router(), prefix="/connect", tags=["connect"])
 app.include_router(admin.router, prefix="/admin", tags=["admin"])
+app.include_router(banking.build_router(lambda: _runtime), prefix="/banking", tags=["banking"])
 
 if get_settings().dev_mode:
     from karenbot.api import dev

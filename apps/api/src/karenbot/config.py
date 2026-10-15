@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     # Observability (optional).
     sentry_dsn: str = ""
 
+    # Plaid (recurring-bill discovery). env: mock | sandbox | production.
+    plaid_env: str = "mock"
+    plaid_client_id: str = ""
+    plaid_secret: str = ""
+
     # Worker
     worker_poll_seconds: float = 2.0
     outbox_sending_lease_seconds: int = 300

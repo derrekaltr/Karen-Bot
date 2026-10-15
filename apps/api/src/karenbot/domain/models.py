@@ -149,6 +149,10 @@ class Case(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(40), default=CaseStatus.DISCOVERED.value)
     # Set when status == BLOCKED so CASE_RESUMED can restore the prior state.
     previous_status: Mapped[str | None] = mapped_column(String(40))
+    # "agent": KarenBot contacts the company itself (targetable companies).
+    # "assist": KarenBot only drafts messages the customer sends personally
+    # (non-enterprise merchants, respect-the-refusal, moral-code cases).
+    contact_mode: Mapped[str] = mapped_column(String(20), default="agent")
     # Structured facts extracted at intake (flight numbers, order ids, ...).
     facts: Mapped[dict[str, Any]] = mapped_column(JSONVariant, default=dict)
     eligibility_basis: Mapped[str | None] = mapped_column(String(40))  # "entitlement" | "goodwill"
@@ -353,6 +357,52 @@ class BillingRecord(TimestampMixin, Base):
     fee_amount: Mapped[Decimal | None] = mapped_column(sa.Numeric(12, 2))
     fee_basis: Mapped[str | None] = mapped_column(String(200))
     payment_status: Mapped[str] = mapped_column(String(40), default="not_charged")
+
+
+class BankConnection(TimestampMixin, Base):
+    """A linked bank/card account (Plaid item). Access tokens are stored
+    Fernet-encrypted, same as email OAuth tokens."""
+
+    __tablename__ = "bank_connections"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
+    provider: Mapped[str] = mapped_column(String(40), default="plaid")
+    item_id: Mapped[str] = mapped_column(String(200))
+    institution_name: Mapped[str | None] = mapped_column(String(200))
+    encrypted_access_token: Mapped[str | None] = mapped_column(String(2000))
+    status: Mapped[str] = mapped_column(String(40), default="active")
+    revoked_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
+
+    __table_args__ = (UniqueConstraint("user_id", "provider", "item_id"),)
+
+
+class RecurringCharge(TimestampMixin, Base):
+    """A detected recurring bill/subscription on a linked account."""
+
+    __tablename__ = "recurring_charges"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
+    bank_connection_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("bank_connections.id"))
+    merchant_name: Mapped[str] = mapped_column(String(200))
+    normalized_merchant: Mapped[str] = mapped_column(String(200))
+    amount: Mapped[Decimal] = mapped_column(sa.Numeric(12, 2))
+    currency: Mapped[str] = mapped_column(String(3), default="USD")
+    cadence: Mapped[str] = mapped_column(String(20))  # weekly | monthly | yearly
+    first_seen: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
+    last_seen: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
+    occurrences: Mapped[int] = mapped_column(default=0)
+    # detected -> (case_created | dismissed); canceled once confirmed gone.
+    status: Mapped[str] = mapped_column(String(30), default="detected")
+    company_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("companies.id"))
+    case_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("cases.id"))
+
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "normalized_merchant", "cadence", name="uq_recurring_user_merchant"
+        ),
+    )
 
 
 class SystemControl(TimestampMixin, Base):

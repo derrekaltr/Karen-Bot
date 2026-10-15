@@ -27,7 +27,25 @@ class EligibilityResult:
     reasons: list[str]
 
 
+# Categories that are intrinsically eligible: a customer always has the
+# right to cancel their own subscription, ask for a lower price, or request
+# a refund review of their own recurring charges. No company policy needed;
+# the basis is the customer's own account relationship, never an entitlement
+# claim against the company.
+CUSTOMER_RIGHT_CATEGORIES = frozenset(
+    {"subscription_cancellation", "bill_negotiation", "recurring_charge_refund"}
+)
+
+
 def assess(session: Session, case: Case) -> EligibilityResult:
+    if case.category in CUSTOMER_RIGHT_CATEGORIES:
+        return EligibilityResult(
+            eligible=True,
+            basis="customer_right",
+            policy_id=None,
+            reasons=["customer_account_relationship"],
+        )
+
     policies = session.scalars(
         select(CompanyPolicy).where(CompanyPolicy.company_id == case.company_id)
     ).all()

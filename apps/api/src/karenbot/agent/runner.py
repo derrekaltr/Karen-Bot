@@ -153,6 +153,8 @@ class AgentRuntime:
         return result
 
     def initiate_contact(self, session: Session, case: Case) -> PolicyDecision:
+        if case.contact_mode == "assist":
+            return self._initiate_assist(session, case)
         channel = self._primary_channel(session, case)
         draft, version = self._generate(
             "draft_email", self._case_context_doc(session, case), EmailDraft
@@ -169,6 +171,46 @@ class AgentRuntime:
             claim_type=case.category,
             requested_amount=case.requested_amount,
             evidence_ids=evidence_ids,
+        )
+        _, decision = self._propose(session, action, prompt_version=version)
+        return decision
+
+    def _initiate_assist(self, session: Session, case: Case) -> PolicyDecision:
+        """Assist mode: draft the message in the customer's own voice; the
+        customer sends it. Used for non-targetable merchants (moral code).
+        Idempotent: one prepared draft per case purpose."""
+        existing = session.scalars(
+            select(AgentAction).where(
+                AgentAction.case_id == case.id,
+                AgentAction.action_type == "draft_for_customer",
+                AgentAction.execution_status == "executed",
+            )
+        ).first()
+        if existing is not None:
+            return PolicyDecision(PolicyDecisionType.ALLOW, ["draft_already_prepared"])
+        company = case.company
+        context = {
+            **self._case_context_doc(session, case),
+            "for_customer_sending": True,
+        }
+        draft, version = self._generate("draft_for_customer", context, EmailDraft)
+        where = (
+            f"the billing/support contact listed on {company.website}"
+            if company.website
+            else f"{company.name}'s billing or support contact (check a recent "
+            "charge statement, receipt, or their website)"
+        )
+        action = DraftForCustomer(
+            case_id=case.id,
+            purpose=f"assist_{case.category}",
+            subject=draft.subject,
+            body=draft.body,
+            guidance=(
+                f"{company.name} isn't a company KarenBot contacts directly, so "
+                f"this message is written for you to send yourself. Send it from "
+                f"your own email to {where}. Paste their reply here and I'll help "
+                "with the next step."
+            ),
         )
         _, decision = self._propose(session, action, prompt_version=version)
         return decision

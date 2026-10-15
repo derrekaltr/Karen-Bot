@@ -66,6 +66,16 @@ FULL_ACTIONS = [
     "close_case",
 ]
 
+# Assist-mode cases (non-targetable merchants, respect-the-refusal): KarenBot
+# may draft and track, but never send to the company itself.
+ASSIST_ACTIONS = [
+    "request_customer_info",
+    "schedule_follow_up",
+    "record_offer",
+    "draft_for_customer",
+    "close_case",
+]
+
 
 def build_loa_text(user: User, company: Company, case: Case) -> str:
     """The Letter of Authorization the customer signs: the documented-agency
@@ -97,18 +107,24 @@ def create_case(
     description: str,
     requested_amount: Decimal | None,
     incident_date: datetime | None = None,
+    assist_mode_ok: bool = False,
 ) -> Case:
+    contact_mode = "agent"
     if not company_is_targetable(company):
-        session.add(
-            AuditEvent(
-                actor_type=ActorType.SYSTEM.value,
-                case_id=None,
-                event_type="case.rejected_company_not_targetable",
-                event_payload={"company": company.name, "size_class": company.size_class},
+        if not assist_mode_ok:
+            session.add(
+                AuditEvent(
+                    actor_type=ActorType.SYSTEM.value,
+                    case_id=None,
+                    event_type="case.rejected_company_not_targetable",
+                    event_payload={"company": company.name, "size_class": company.size_class},
+                )
             )
-        )
-        session.flush()
-        raise CompanyNotTargetable(company.name, company.size_class)
+            session.flush()
+            raise CompanyNotTargetable(company.name, company.size_class)
+        # Moral code: non-targetable companies get assist mode only —
+        # KarenBot drafts, the customer sends.
+        contact_mode = "assist"
     case = Case(
         user_id=user.id,
         company_id=company.id,
@@ -116,6 +132,7 @@ def create_case(
         description=description,
         requested_amount=requested_amount,
         incident_date=incident_date,
+        contact_mode=contact_mode,
     )
     session.add(case)
     session.flush()
@@ -162,10 +179,11 @@ def grant_full_authorization(
     user = session.get(User, case.user_id)
     company = session.get(Company, case.company_id)
     assert user is not None and company is not None
+    actions = ASSIST_ACTIONS if case.contact_mode == "assist" else FULL_ACTIONS
     auth = CaseAuthorization(
         case_id=case.id,
         user_id=case.user_id,
-        authorized_actions=FULL_ACTIONS,
+        authorized_actions=actions,
         authorized_claim_types=[case.category],
         max_requested_amount=max_requested_amount or case.requested_amount,
         authorization_version=2,
@@ -181,7 +199,7 @@ def grant_full_authorization(
             actor_id=str(case.user_id),
             case_id=case.id,
             event_type="authorization.granted",
-            event_payload={"actions": FULL_ACTIONS, "signed_name": auth.signed_name},
+            event_payload={"actions": actions, "signed_name": auth.signed_name},
         )
     )
     transition(session, case, CaseEvent.AUTHORIZATION_GRANTED, actor_type=ActorType.CUSTOMER)

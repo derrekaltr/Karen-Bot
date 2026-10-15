@@ -124,16 +124,36 @@ class ScriptedClient:
         facts_lines = "\n".join(
             f"- {k.replace('_', ' ')}: {v}" for k, v in ctx.get("facts", {}).items()
         )
-        subject = f"{claim.replace('_', ' ').title()} — request for {currency} {amount}"
+        if "cancellation" in claim:
+            subject = f"Cancellation request — {company}"
+            ask = (
+                "I am writing to cancel my subscription/membership, effective "
+                "immediately. Please confirm the cancellation in writing, stop "
+                "all future charges to my payment method, and let me know if any "
+                "final steps are required on my side."
+            )
+        elif "negotiation" in claim:
+            subject = f"Request to review my current rate — {company}"
+            ask = (
+                "I have been a paying customer and am reviewing my recurring "
+                "expenses. I would like to ask whether a lower rate, a smaller "
+                "plan, or any current promotion can be applied to my account. "
+                "If not, please let me know my options, including cancellation."
+            )
+        else:
+            subject = f"{claim.replace('_', ' ').title()} — request for {currency} {amount}"
+            ask = (
+                f"Per your published policy "
+                f"({ctx.get('policy_summary', 'customer service policy')}), I am "
+                f"requesting reimbursement of {currency} {amount}. I can provide "
+                "receipts and documentation on request."
+            )
         body = (
             f"Hello {company} support,\n\n"
             f"I am writing about the following matter:\n\n"
             f"{ctx.get('incident_summary', '')}\n\n"
             f"{facts_lines}\n\n"
-            f"Per your published policy "
-            f"({ctx.get('policy_summary', 'customer service policy')}), I am "
-            f"requesting reimbursement of {currency} {amount}. I can provide "
-            "receipts and documentation on request.\n\n"
+            f"{ask}\n\n"
             "Kind regards"
         )
         return EmailDraft(subject=subject, body=body.strip())

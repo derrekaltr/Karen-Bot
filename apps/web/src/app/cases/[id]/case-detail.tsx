@@ -5,14 +5,17 @@ import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { StatusBadge } from "@/components/StatusBadge";
 import {
+  ApiError,
   PERSONAS,
   TERMINAL_STATUSES,
   approveAction,
+  authorizeCase,
   confirmRecovery,
   devTick,
   formatAmount,
   getCase,
   humanize,
+  initiateContact,
   listApprovals,
   listAudit,
   listCommunications,
@@ -42,6 +45,8 @@ export function CaseDetail({ caseId }: { caseId: string }) {
   const [persona, setPersona] = useState<Persona>("lowball_then_accept");
   const [expandedBodies, setExpandedBodies] = useState<Set<string>>(new Set());
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [signedName, setSignedName] = useState("");
+  const [loaText, setLoaText] = useState<string | null>(null);
 
   const refetch = useCallback(async () => {
     try {
@@ -103,6 +108,30 @@ export function CaseDetail({ caseId }: { caseId: string }) {
         next.add(id);
       }
       return next;
+    });
+  }
+
+  async function submitAuthorization() {
+    if (signedName.trim() === "") {
+      setActionError("Type your full name to sign.");
+      return;
+    }
+    const name = signedName.trim();
+    await runAction(async () => {
+      const result = await authorizeCase(caseId, name);
+      setLoaText(result.loa_text);
+    });
+  }
+
+  async function sendKaren() {
+    await runAction(async () => {
+      const result = await initiateContact(caseId);
+      if (result.decision === "deny") {
+        throw new ApiError(
+          422,
+          `Karen can't make contact yet: ${result.reasons.join("; ")}`,
+        );
+      }
     });
   }
 
@@ -172,6 +201,71 @@ export function CaseDetail({ caseId }: { caseId: string }) {
         >
           {actionError}
         </p>
+      )}
+
+      {/* Authorization */}
+      {caseRecord.status === "AWAITING_AUTHORIZATION" && (
+        <Card className="border-accent-500/50 bg-accent-50/60">
+          <h2 className="text-base font-semibold">
+            Karen needs your authorization
+          </h2>
+          <p className="mt-1 text-sm leading-relaxed text-ink-600">
+            Before Karen can go after {companyLabel} on your behalf, you need
+            to sign a Letter of Authorization. Type your full legal name below
+            to sign — you can revoke it at any time.
+          </p>
+          <form
+            className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void submitAuthorization();
+            }}
+          >
+            <div className="flex flex-1 flex-col gap-1.5">
+              <label htmlFor="signed-name" className="text-sm font-medium">
+                Type your full name to sign
+              </label>
+              <input
+                id="signed-name"
+                type="text"
+                placeholder="e.g. Dana Example"
+                value={signedName}
+                onChange={(event) => setSignedName(event.target.value)}
+                className="min-h-11 rounded-lg border border-slate-300 bg-white px-4 text-sm focus:border-accent-600"
+              />
+            </div>
+            <Button type="submit" disabled={busy}>
+              {busy ? "Signing…" : "Authorize KarenBot"}
+            </Button>
+          </form>
+        </Card>
+      )}
+
+      {loaText !== null && (
+        <details className="rounded-xl border border-slate-200 bg-slate-50">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-semibold">
+            Your signed Letter of Authorization
+          </summary>
+          <pre className="max-h-64 overflow-y-auto border-t border-slate-200 px-4 py-3 font-mono text-xs leading-relaxed whitespace-pre-wrap">
+            {loaText}
+          </pre>
+        </details>
+      )}
+
+      {/* Ready to contact */}
+      {caseRecord.status === "READY_TO_CONTACT" && (
+        <Card className="border-accent-500/50 bg-accent-50/60">
+          <h2 className="text-base font-semibold">Karen is ready</h2>
+          <p className="mt-1 text-sm leading-relaxed text-ink-600">
+            Authorization signed. Say the word and Karen makes first contact
+            with {companyLabel}.
+          </p>
+          <div className="mt-4">
+            <Button disabled={busy} onClick={() => void sendKaren()}>
+              {busy ? "Dispatching…" : "Send Karen after them"}
+            </Button>
+          </div>
+        </Card>
       )}
 
       {/* Approvals */}
