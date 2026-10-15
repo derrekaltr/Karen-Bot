@@ -111,6 +111,41 @@ SEED_COMPANIES: "list[dict[str, Any]]" = [
         ],
     },
     {
+        "name": "Southwest Airlines",
+        "industry": "airline",
+        "size_class": "enterprise",
+        "channel": "relations@southwest.example",
+        "purpose": "delay compensation and refunds",
+        "policy_type": "flight_delay_compensation",
+        "policy_summary": "Per Southwest's DOT settlement (through April 2027), "
+        "passengers delayed 3+ hours by a controllable cause receive a "
+        "transferable voucher of at least $75 on request — never automatic.",
+        "rules": {
+            "claim_type": "flight_delay_compensation",
+            "basis": "entitlement",
+            "max_amount": 500,
+            "requires_evidence": False,
+        },
+    },
+    {
+        "name": "JetBlue",
+        "industry": "airline",
+        "size_class": "enterprise",
+        "channel": "care@jetblue.example",
+        "purpose": "customer service plan claims",
+        "policy_type": "flight_delay_compensation",
+        "policy_summary": "JetBlue's published Customer Service Plan: flat 5,000 "
+        "TrueBlue points for controllable delays over 3 hours (or cancellation "
+        "under 4 hours notice), automatic within 24h; TrueBlue account must be "
+        "attached before the disruption; $12 meal voucher.",
+        "rules": {
+            "claim_type": "flight_delay_compensation",
+            "basis": "entitlement",
+            "max_amount": 500,
+            "requires_evidence": False,
+        },
+    },
+    {
         "name": "Uber",
         "industry": "rideshare",
         "size_class": "enterprise",
