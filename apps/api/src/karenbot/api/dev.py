@@ -231,15 +231,36 @@ def build_router(
                 company = session.scalars(
                     select(Company).where(Company.name == spec["name"])
                 ).first()
-                if company is not None:
+                if company is None:
+                    company = Company(
+                        name=spec["name"],
+                        industry=spec["industry"],
+                        size_class=spec["size_class"],
+                    )
+                    session.add(company)
+                    session.flush()
+                else:
+                    # Upgrade a previously user-created (unclassified) row to
+                    # the curated spec — e.g. a company someone typed into
+                    # "Other company" before it joined the catalog.
+                    company.industry = spec["industry"]
+                    company.size_class = spec["size_class"]
+                existing_channels = {
+                    c.address
+                    for c in session.scalars(
+                        select(SupportChannel).where(SupportChannel.company_id == company.id)
+                    )
+                }
+                existing_policies = {
+                    p.policy_type
+                    for p in session.scalars(
+                        select(CompanyPolicy).where(CompanyPolicy.company_id == company.id)
+                    )
+                }
+                if spec.get("channel") and spec["channel"] in existing_channels:
                     continue
-                company = Company(
-                    name=spec["name"],
-                    industry=spec["industry"],
-                    size_class=spec["size_class"],
-                )
-                session.add(company)
-                session.flush()
+                if spec.get("channel") and spec["policy_type"] in existing_policies:
+                    continue
                 if spec.get("channel"):
                     session.add(
                         SupportChannel(
