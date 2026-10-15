@@ -115,15 +115,9 @@ class CompanyOut(BaseModel):
     claim_types: list[str]
 
 
-# Categories always available in assist mode (the customer's own complaint
-# in their own voice; no entitlement asserted, no verified policy needed).
-GENERAL_CATEGORIES = [
-    "refund_request",
-    "incorrect_charge",
-    "service_failure",
-    "subscription_cancellation",
-    "bill_negotiation",
-]
+from karenbot.domain import categories as category_catalog  # noqa: E402
+
+GENERAL_CATEGORIES = [c.key for c in category_catalog.GENERAL]
 
 
 @app.get("/companies", response_model=list[CompanyOut])
@@ -151,7 +145,18 @@ def list_companies(db: Session = Depends(get_db)) -> list[CompanyOut]:
 
 @app.get("/categories")
 def general_categories() -> dict:
-    return {"general_categories": GENERAL_CATEGORIES}
+    """Category catalog: general plus industry-specific options with labels."""
+    return {
+        "general_categories": GENERAL_CATEGORIES,
+        "general": [
+            {"key": c.key, "label": c.label} for c in category_catalog.GENERAL
+        ],
+        "by_industry": {
+            industry: [{"key": c.key, "label": c.label} for c in options]
+            for industry, options in category_catalog.BY_INDUSTRY.items()
+        },
+        "industries": category_catalog.KNOWN_INDUSTRIES,
+    }
 
 
 # --------------------------------------------------------------------------
@@ -165,6 +170,9 @@ class CaseCreate(BaseModel):
     description: str
     requested_amount: Decimal | None = None
     incident_date: datetime | None = None
+    # For unknown companies: what kind of business it is (drives the
+    # suggested-category catalog and future classification review).
+    company_industry: str | None = None
 
 
 class CaseOut(BaseModel):
@@ -210,13 +218,20 @@ def create_case(
     name = payload.company_name.strip()
     if not name:
         raise HTTPException(422, "company name is required")
+    category = payload.category.strip().lower().replace(" ", "_")[:80]
+    if not category:
+        raise HTTPException(422, "category is required")
+    payload.category = category
     company = db.scalars(select(Company).where(Company.name == name)).first()
     if company is None:
         # Any company works: unknown ones start unclassified, which routes
         # the case to assist mode (Karen drafts; the customer sends). Agent
         # contact requires a human-verified channel first (moral code +
         # never-invent-addresses rule).
-        company = Company(name=name, industry="other", size_class="unclassified")
+        industry = (payload.company_industry or "other").strip().lower()
+        if industry not in category_catalog.KNOWN_INDUSTRIES:
+            industry = "other"
+        company = Company(name=name, industry=industry, size_class="unclassified")
         db.add(company)
         db.flush()
     case = services.create_case(

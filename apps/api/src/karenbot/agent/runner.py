@@ -84,9 +84,21 @@ class AgentRuntime:
         evidence = session.scalars(
             select(CaseEvidence).where(CaseEvidence.case_id == case.id)
         ).all()
-        policy = session.scalars(
-            select(CompanyPolicy).where(CompanyPolicy.company_id == case.company_id)
-        ).first()
+        # Only the policy matching THIS claim type may be cited in drafts;
+        # goodwill requests carry no policy summary at all.
+        policy = next(
+            (
+                p
+                for p in session.scalars(
+                    select(CompanyPolicy).where(
+                        CompanyPolicy.company_id == case.company_id,
+                        CompanyPolicy.verified_at.is_not(None),
+                    )
+                )
+                if (p.eligibility_rules or {}).get("claim_type") == case.category
+            ),
+            None,
+        )
         return {
             "company": case.company.name,
             "category": case.category,
@@ -98,6 +110,7 @@ class AgentRuntime:
             "currency": case.currency,
             "evidence_count": len(evidence),
             "policy_summary": (policy.content or {}).get("summary") if policy else None,
+            "basis": case.eligibility_basis,
             "customer_name": case.user.display_name or "the customer",
         }
 

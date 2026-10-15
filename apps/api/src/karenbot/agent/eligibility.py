@@ -89,6 +89,18 @@ def assess(session: Session, case: Case) -> EligibilityResult:
             reasons=["matched_verified_policy"],
         )
 
-    if not reasons:
-        reasons.append("no_matching_verified_policy")
-    return EligibilityResult(eligible=False, basis=None, policy_id=None, reasons=reasons)
+    if reasons:
+        # A policy for this claim type exists but its conditions failed
+        # (over the cap, missing required evidence, unverified): reject.
+        return EligibilityResult(eligible=False, basis=None, policy_id=None, reasons=reasons)
+
+    # No policy covers this claim type at all. Per the handoff, discretionary
+    # goodwill requests are a legitimate agent activity — pursue on a
+    # goodwill basis, never asserting entitlement. Policy-backed claims
+    # remain the only path to entitlement language.
+    return EligibilityResult(
+        eligible=True,
+        basis="goodwill",
+        policy_id=None,
+        reasons=["no_matching_policy_goodwill_request"],
+    )

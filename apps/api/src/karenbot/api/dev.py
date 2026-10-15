@@ -82,6 +82,35 @@ SEED_COMPANIES: "list[dict[str, Any]]" = [
         ],
     },
     {
+        "name": "American Airlines",
+        "industry": "airline",
+        "size_class": "enterprise",
+        "channel": "customer.relations@aa.example",
+        "purpose": "refunds, credits, and customer relations",
+        "policy_type": "flight_credit_reissue",
+        "policy_summary": "Trip credits from unflown tickets can be reissued or "
+        "extended; expired credits are reviewed case by case.",
+        "rules": {
+            "claim_type": "flight_credit_reissue",
+            "basis": "goodwill",
+            "max_amount": 3000,
+            "requires_evidence": False,
+        },
+        "extra_policies": [
+            {
+                "policy_type": "flight_cancellation_refund",
+                "policy_summary": "Cancelled flights are refundable to the original "
+                "form of payment on request.",
+                "rules": {
+                    "claim_type": "flight_cancellation_refund",
+                    "basis": "entitlement",
+                    "max_amount": 2500,
+                    "requires_evidence": True,
+                },
+            }
+        ],
+    },
+    {
         "name": "Uber",
         "industry": "rideshare",
         "size_class": "enterprise",

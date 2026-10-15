@@ -73,6 +73,22 @@ export interface Company {
   claim_types: string[];
 }
 
+export interface CategoryOption {
+  /** snake_case category key submitted to the API. */
+  key: string;
+  /** Human-readable display label. */
+  label: string;
+}
+
+export interface CategoryCatalog {
+  /** Categories always available in assist mode, regardless of company. */
+  general: CategoryOption[];
+  /** Industry-specific suggestions, keyed by industry (e.g. "airline"). */
+  by_industry: Record<string, CategoryOption[]>;
+  /** Industries a user can pick for an unknown company (includes "other"). */
+  industries: string[];
+}
+
 export interface Case {
   id: string;
   status: CaseStatus;
@@ -226,10 +242,9 @@ export function listCompanies(): Promise<Company[]> {
   return request("/companies");
 }
 
-/** Categories always available in assist mode, regardless of company. */
-export async function getGeneralCategories(): Promise<string[]> {
-  const result = await request<{ general_categories: string[] }>("/categories");
-  return result.general_categories;
+/** Full category catalog: general options plus industry-specific ones. */
+export function getCategoryCatalog(): Promise<CategoryCatalog> {
+  return request("/categories");
 }
 
 export function createCase(input: {
@@ -237,6 +252,8 @@ export function createCase(input: {
   category: string;
   description: string;
   requested_amount: number | null;
+  /** For unknown companies: what kind of business it is. */
+  company_industry?: string;
 }): Promise<CaseCreated> {
   return request("/cases", { method: "POST", body: input });
 }

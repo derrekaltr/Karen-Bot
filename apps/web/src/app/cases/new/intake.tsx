@@ -10,30 +10,75 @@ import {
   authorizeCase,
   completeIntake,
   createCase,
-  getGeneralCategories,
+  getCategoryCatalog,
   humanize,
   initiateContact,
   listCompanies,
   seed,
+  type CategoryCatalog,
+  type CategoryOption,
   type Company,
 } from "@/lib/api";
 
-/** Human labels for known claim types and general categories. */
-const CATEGORY_LABELS: Record<string, string> = {
-  baggage_delay_expenses: "Delayed baggage expenses",
-  flight_cancellation_refund: "Cancelled flight refund",
-  incorrect_charge: "Incorrect charge",
-  fee_dispute: "Fee dispute",
-  missing_refund: "Missing refund",
-  refund_request: "Refund request",
-  service_failure: "Service failure",
-  subscription_cancellation: "Cancel a subscription",
-  bill_negotiation: "Negotiate a bill",
-};
+/**
+ * Sentinel value for the "Something else…" category option. Never collides
+ * with real category keys (the server normalizes those to snake_case words).
+ */
+const CUSTOM_CATEGORY = "__custom__";
 
-/** Humanized snake_case as fallback for unknown category values. */
-function categoryLabel(value: string): string {
-  return CATEGORY_LABELS[value] ?? humanize(value);
+/** Catalog label for a category key, humanized snake_case as fallback. */
+function categoryLabel(key: string, catalog: CategoryCatalog | null): string {
+  if (catalog !== null) {
+    for (const group of [catalog.general, ...Object.values(catalog.by_industry)]) {
+      const match = group.find((option) => option.key === key);
+      if (match !== undefined) return match.label;
+    }
+  }
+  return humanize(key);
+}
+
+/** Merge option groups in order, deduplicating by key. */
+function dedupeOptions(groups: CategoryOption[][]): CategoryOption[] {
+  const seen = new Set<string>();
+  const merged: CategoryOption[] = [];
+  for (const group of groups) {
+    for (const option of group) {
+      if (!seen.has(option.key)) {
+        seen.add(option.key);
+        merged.push(option);
+      }
+    }
+  }
+  return merged;
+}
+
+/**
+ * Options for a known company: its claim types first, then the catalog's
+ * suggestions for its industry, then the general assist-mode categories.
+ */
+function optionsForCompany(
+  company: Company,
+  catalog: CategoryCatalog | null,
+): CategoryOption[] {
+  return dedupeOptions([
+    company.claim_types.map((key) => ({
+      key,
+      label: categoryLabel(key, catalog),
+    })),
+    catalog?.by_industry[company.industry] ?? [],
+    catalog?.general ?? [],
+  ]);
+}
+
+/** Options for an unknown company, from its user-picked industry. */
+function optionsForIndustry(
+  industry: string,
+  catalog: CategoryCatalog | null,
+): CategoryOption[] {
+  return dedupeOptions([
+    industry === "other" ? [] : (catalog?.by_industry[industry] ?? []),
+    catalog?.general ?? [],
+  ]);
 }
 
 const SMALL_BUSINESS_NOTE =
@@ -73,12 +118,14 @@ export function GuidedIntake() {
   const [busy, setBusy] = useState(false);
 
   // Step 1 form state
-  const [generalCategories, setGeneralCategories] = useState<string[]>([]);
+  const [catalog, setCatalog] = useState<CategoryCatalog | null>(null);
   const [companyName, setCompanyName] = useState<string | null>(null);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [showOtherInput, setShowOtherInput] = useState(false);
   const [otherName, setOtherName] = useState("");
+  const [otherIndustry, setOtherIndustry] = useState("other");
   const [category, setCategory] = useState("");
+  const [customCategory, setCustomCategory] = useState("");
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
 
@@ -108,13 +155,13 @@ export function GuidedIntake() {
     (async () => {
       try {
         await seed(); // idempotent — safe if dashboard already seeded
-        const [result, categories] = await Promise.all([
+        const [result, categoryCatalog] = await Promise.all([
           listCompanies(),
-          getGeneralCategories(),
+          getCategoryCatalog(),
         ]);
         if (cancelled) return;
         setCompanies(result);
-        setGeneralCategories(categories);
+        setCatalog(categoryCatalog);
         say(
           "karen",
           "Hi, I'm Karen. Tell me what happened and I'll take it from here. Which company wronged you?",
@@ -155,7 +202,7 @@ export function GuidedIntake() {
     setSelectedCompany(company);
     setCompanyName(company.name);
     setShowOtherInput(false);
-    setCategory(company.claim_types[0] ?? generalCategories[0] ?? "");
+    setCategory(optionsForCompany(company, catalog)[0]?.key ?? CUSTOM_CATEGORY);
     say("you", company.name);
     say(
       "karen",
@@ -173,7 +220,9 @@ export function GuidedIntake() {
     setError(null);
     setSelectedCompany(null);
     setCompanyName(name);
-    setCategory(generalCategories[0] ?? "");
+    setCategory(
+      optionsForIndustry(otherIndustry, catalog)[0]?.key ?? CUSTOM_CATEGORY,
+    );
     say("you", name);
     say(
       "karen",
@@ -183,8 +232,18 @@ export function GuidedIntake() {
   }
 
   async function submitDetails() {
-    if (companyName === null || category === "" || description.trim() === "") {
+    const effectiveCategory =
+      category === CUSTOM_CATEGORY ? customCategory.trim() : category;
+    if (
+      companyName === null ||
+      category === "" ||
+      description.trim() === ""
+    ) {
       setError("Pick a category and describe what happened first.");
+      return;
+    }
+    if (effectiveCategory === "") {
+      setError("Describe what you're after first.");
       return;
     }
     setError(null);
@@ -197,9 +256,13 @@ export function GuidedIntake() {
     try {
       const created = await createCase({
         company_name: companyName,
-        category,
+        category: effectiveCategory,
         description: description.trim(),
         requested_amount: parsedAmount,
+        // Only unknown companies need the user-picked industry hint.
+        ...(selectedCompany === null
+          ? { company_industry: otherIndustry }
+          : {}),
       });
       setCaseId(created.case.id);
       setContactMode(created.case.contact_mode);
@@ -334,13 +397,13 @@ export function GuidedIntake() {
     }
   }
 
-  // Company-specific claim types first, then the general (assist-mode)
-  // categories, deduplicated by value.
-  const claimTypes = selectedCompany?.claim_types ?? [];
-  const categoryOptions = [
-    ...claimTypes,
-    ...generalCategories.filter((value) => !claimTypes.includes(value)),
-  ].map((value) => ({ value, label: categoryLabel(value) }));
+  // Known company: its claim types, then its industry's suggestions, then
+  // the general assist-mode categories. Unknown company: the user-picked
+  // industry's suggestions plus the general ones. Deduplicated by key.
+  const categoryOptions =
+    selectedCompany !== null
+      ? optionsForCompany(selectedCompany, catalog)
+      : optionsForIndustry(otherIndustry, catalog);
 
   return (
     <div>
@@ -437,6 +500,30 @@ export function GuidedIntake() {
                             className={inputClasses}
                           />
                         </div>
+                        <div className="flex flex-col gap-1.5 sm:w-52">
+                          <label
+                            htmlFor="other-industry"
+                            className="text-sm font-medium"
+                          >
+                            What kind of company is it?
+                          </label>
+                          <select
+                            id="other-industry"
+                            value={otherIndustry}
+                            onChange={(event) =>
+                              setOtherIndustry(event.target.value)
+                            }
+                            className={inputClasses}
+                          >
+                            {(catalog?.industries ?? ["other"]).map(
+                              (industry) => (
+                                <option key={industry} value={industry}>
+                                  {humanize(industry)}
+                                </option>
+                              ),
+                            )}
+                          </select>
+                        </div>
                         <Button type="submit">That&apos;s them</Button>
                       </div>
                       <p className="mt-2 text-xs text-ink-500">
@@ -487,10 +574,11 @@ export function GuidedIntake() {
                     className={inputClasses}
                   >
                     {categoryOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
+                      <option key={option.key} value={option.key}>
                         {option.label}
                       </option>
                     ))}
+                    <option value={CUSTOM_CATEGORY}>Something else…</option>
                   </select>
                 </div>
                 <div className="flex flex-col gap-1.5">
@@ -509,6 +597,27 @@ export function GuidedIntake() {
                   />
                 </div>
               </div>
+              {category === CUSTOM_CATEGORY && (
+                <div className="flex flex-col gap-1.5">
+                  <label
+                    htmlFor="custom-category"
+                    className="text-sm font-medium"
+                  >
+                    Describe what you&apos;re after
+                  </label>
+                  <input
+                    id="custom-category"
+                    type="text"
+                    autoFocus
+                    placeholder="e.g. 'flight credits for flights I didn't take'"
+                    value={customCategory}
+                    onChange={(event) =>
+                      setCustomCategory(event.target.value)
+                    }
+                    className={inputClasses}
+                  />
+                </div>
+              )}
               <div className="flex flex-col gap-1.5">
                 <label htmlFor="description" className="text-sm font-medium">
                   What happened?

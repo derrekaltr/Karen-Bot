@@ -100,14 +100,27 @@ class ScriptedClient:
             )
         else:
             subject = f"{claim.replace('_', ' ').title()} — request for {currency} {amount}"
+            policy_summary = ctx.get("policy_summary")
+            if policy_summary:
+                ask_line = (
+                    f"Per your published policy ({policy_summary}), "
+                    f"we request reimbursement of {currency} {amount}."
+                )
+            else:
+                # Goodwill basis: never assert a policy or entitlement that
+                # does not exist.
+                ask_line = (
+                    f"Given the documented circumstances, we are requesting "
+                    f"{currency} {amount} as a fair resolution, which we hope "
+                    f"you will consider as a matter of customer goodwill."
+                )
             body = (
                 f"Hello {company} support,\n\n"
                 f"I am writing on behalf of {customer}, with their documented "
                 f"authorization, regarding the following matter:\n\n"
                 f"{ctx.get('incident_summary', '')}\n\n"
                 f"{facts_lines}\n\n"
-                f"Per your published policy ({ctx.get('policy_summary', 'customer service policy')}), "
-                f"we request reimbursement of {currency} {amount}. {evidence_note}\n\n"
+                f"{ask_line} {evidence_note}\n\n"
                 "This message was sent by KarenBot, an authorized representative acting "
                 f"with the documented consent of {customer}.\n\n"
                 "Kind regards,\nKarenBot on behalf of the customer"
