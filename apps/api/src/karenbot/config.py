@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     llm_provider: str = "scripted"  # "scripted" | "anthropic"
     agent_model: str = "claude-sonnet-5-5"
-    classifier_model: str = "claude-haiku-4-5-20251001"
+    classifier_model: str = "claude-haiku-4-5"
 
     # Moral code: company size classes KarenBot may target. Mom-and-pop
     # businesses ("small_business") and unreviewed companies ("unclassified")

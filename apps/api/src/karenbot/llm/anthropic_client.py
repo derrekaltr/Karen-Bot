@@ -1,4 +1,10 @@
-"""Anthropic Claude client: structured output via forced tool use."""
+"""Anthropic Claude client: structured outputs via messages.parse().
+
+Current-generation models (Sonnet 5.5 and newer) removed forced tool_choice;
+the supported way to get schema-validated output is structured outputs —
+`client.messages.parse(output_format=<pydantic model>)`, which returns a
+validated instance on `response.parsed_output`.
+"""
 
 from typing import TypeVar
 
@@ -31,22 +37,13 @@ class AnthropicClient:
         output_model: type[T],
     ) -> T:
         model = self._classifier_model if task in CLASSIFIER_TASKS else self._agent_model
-        tool_name = f"emit_{task}_result"
-        response = self._client.messages.create(
+        response = self._client.messages.parse(
             model=model,
-            max_tokens=2048,
+            max_tokens=4096,
             system=system_prompt,
             messages=[{"role": "user", "content": user_content}],
-            tools=[
-                {
-                    "name": tool_name,
-                    "description": f"Return the structured result for task '{task}'.",
-                    "input_schema": output_model.model_json_schema(),
-                }
-            ],
-            tool_choice={"type": "tool", "name": tool_name},
+            output_format=output_model,
         )
-        for block in response.content:
-            if block.type == "tool_use":
-                return output_model.model_validate(block.input)
-        raise RuntimeError(f"model returned no tool_use block for task {task}")
+        if response.parsed_output is None:
+            raise RuntimeError(f"model returned no parsable output for task {task}")
+        return response.parsed_output
