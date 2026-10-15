@@ -110,10 +110,31 @@ class CompanyOut(BaseModel):
     size_class: str
     targetable: bool
     refuses_third_party: bool
+    # Claim types the agent can pursue against this company (from verified
+    # policies). Empty for assist-mode-only companies.
+    claim_types: list[str]
+
+
+# Categories always available in assist mode (the customer's own complaint
+# in their own voice; no entitlement asserted, no verified policy needed).
+GENERAL_CATEGORIES = [
+    "refund_request",
+    "incorrect_charge",
+    "service_failure",
+    "subscription_cancellation",
+    "bill_negotiation",
+]
 
 
 @app.get("/companies", response_model=list[CompanyOut])
 def list_companies(db: Session = Depends(get_db)) -> list[CompanyOut]:
+    from karenbot.domain.models import CompanyPolicy
+
+    policy_types: dict[uuid.UUID, list[str]] = {}
+    for policy in db.scalars(select(CompanyPolicy).where(CompanyPolicy.verified_at.is_not(None))):
+        claim = (policy.eligibility_rules or {}).get("claim_type")
+        if claim:
+            policy_types.setdefault(policy.company_id, []).append(claim)
     return [
         CompanyOut(
             id=c.id,
@@ -122,9 +143,15 @@ def list_companies(db: Session = Depends(get_db)) -> list[CompanyOut]:
             size_class=c.size_class,
             targetable=services.company_is_targetable(c),
             refuses_third_party=c.refuses_third_party,
+            claim_types=sorted(set(policy_types.get(c.id, []))),
         )
         for c in db.scalars(select(Company).order_by(Company.name))
     ]
+
+
+@app.get("/categories")
+def general_categories() -> dict:
+    return {"general_categories": GENERAL_CATEGORIES}
 
 
 # --------------------------------------------------------------------------
@@ -147,6 +174,7 @@ class CaseOut(BaseModel):
     description: str
     requested_amount: Decimal | None
     currency: str
+    contact_mode: str = "agent"
     company_name: str | None = None
     eligibility_basis: str | None = None
     facts: dict[str, Any] = {}
@@ -179,15 +207,18 @@ def create_case(
     user: User = Depends(current_user),
     db: Session = Depends(get_db),
 ) -> CaseCreated:
-    company = db.scalars(select(Company).where(Company.name == payload.company_name)).first()
+    name = payload.company_name.strip()
+    if not name:
+        raise HTTPException(422, "company name is required")
+    company = db.scalars(select(Company).where(Company.name == name)).first()
     if company is None:
-        raise HTTPException(404, "company not supported yet")
-    if not services.company_is_targetable(company):
-        raise HTTPException(
-            422,
-            "KarenBot only takes on large companies — this business is not "
-            "one we'll go after.",
-        )
+        # Any company works: unknown ones start unclassified, which routes
+        # the case to assist mode (Karen drafts; the customer sends). Agent
+        # contact requires a human-verified channel first (moral code +
+        # never-invent-addresses rule).
+        company = Company(name=name, industry="other", size_class="unclassified")
+        db.add(company)
+        db.flush()
     case = services.create_case(
         db,
         user=user,
@@ -196,6 +227,7 @@ def create_case(
         description=payload.description,
         requested_amount=payload.requested_amount,
         incident_date=payload.incident_date,
+        assist_mode_ok=True,
     )
     intake = _runtime.run_intake(db, case)
     return CaseCreated(case=_case_out(db, case), karen_questions=intake.missing_info)

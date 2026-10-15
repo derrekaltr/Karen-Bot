@@ -185,7 +185,14 @@ export function CaseDetail({ caseId }: { caseId: string }) {
               </p>
             )}
           </div>
-          <StatusBadge status={caseRecord.status} />
+          <div className="flex items-center gap-2">
+            <StatusBadge status={caseRecord.status} />
+            {caseRecord.contact_mode === "assist" && (
+              <span className="rounded-full border border-slate-300 bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-ink-600">
+                Assist mode
+              </span>
+            )}
+          </div>
         </div>
         {error !== null && (
           <p className="mt-3 text-xs text-amber-700">
@@ -262,7 +269,11 @@ export function CaseDetail({ caseId }: { caseId: string }) {
           </p>
           <div className="mt-4">
             <Button disabled={busy} onClick={() => void sendKaren()}>
-              {busy ? "Dispatching…" : "Send Karen after them"}
+              {busy
+                ? "Dispatching…"
+                : caseRecord.contact_mode === "assist"
+                  ? "Have Karen draft it"
+                  : "Send Karen after them"}
             </Button>
           </div>
         </Card>

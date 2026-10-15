@@ -69,6 +69,8 @@ export interface Company {
   size_class: string;
   targetable: boolean;
   refuses_third_party: boolean;
+  /** Claim types the agent can pursue (from verified policies); empty for assist-only companies. */
+  claim_types: string[];
 }
 
 export interface Case {
@@ -80,6 +82,8 @@ export interface Case {
   requested_amount: string | null;
   currency: string;
   company_name: string | null;
+  /** "agent": Karen negotiates directly. "assist": Karen drafts, the customer sends. */
+  contact_mode: "agent" | "assist";
   eligibility_basis: string | null;
   facts: Record<string, unknown>;
 }
@@ -220,6 +224,12 @@ export function seed(): Promise<{ user_email: string; companies: string[] }> {
 
 export function listCompanies(): Promise<Company[]> {
   return request("/companies");
+}
+
+/** Categories always available in assist mode, regardless of company. */
+export async function getGeneralCategories(): Promise<string[]> {
+  const result = await request<{ general_categories: string[] }>("/categories");
+  return result.general_categories;
 }
 
 export function createCase(input: {

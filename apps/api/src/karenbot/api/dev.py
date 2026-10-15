@@ -54,12 +54,105 @@ SEED_COMPANIES: "list[dict[str, Any]]" = [
         },
     },
     {
+        "name": "Delta Air Lines",
+        "industry": "airline",
+        "size_class": "enterprise",
+        "channel": "refunds@delta.example",
+        "purpose": "refunds and baggage claims",
+        "policy_type": "flight_cancellation_refund",
+        "policy_summary": "Refunds for cancelled flights to original form of payment; "
+        "reasonable documented expenses for baggage delays.",
+        "rules": {
+            "claim_type": "flight_cancellation_refund",
+            "basis": "entitlement",
+            "max_amount": 2500,
+            "requires_evidence": True,
+        },
+        "extra_policies": [
+            {
+                "policy_type": "baggage_delay_expenses",
+                "policy_summary": "Reimburses reasonable documented baggage-delay expenses.",
+                "rules": {
+                    "claim_type": "baggage_delay_expenses",
+                    "basis": "entitlement",
+                    "max_amount": 800,
+                    "requires_evidence": True,
+                },
+            }
+        ],
+    },
+    {
+        "name": "Uber",
+        "industry": "rideshare",
+        "size_class": "enterprise",
+        "channel": "support@uber.example",
+        "purpose": "trip and billing issues",
+        "policy_type": "incorrect_charge",
+        "policy_summary": "Refunds incorrect, duplicate, or inflated trip charges.",
+        "rules": {
+            "claim_type": "incorrect_charge",
+            "basis": "entitlement",
+            "max_amount": 300,
+            "requires_evidence": True,
+        },
+    },
+    {
+        "name": "American Express",
+        "industry": "financial",
+        "size_class": "enterprise",
+        "channel": "disputes@amex.example",
+        "purpose": "fee and billing disputes",
+        "policy_type": "fee_dispute",
+        "policy_summary": "Reviews annual fees and service charges; goodwill waivers "
+        "available for members in good standing.",
+        "rules": {
+            "claim_type": "fee_dispute",
+            "basis": "goodwill",
+            "max_amount": 700,
+            "requires_evidence": False,
+        },
+    },
+    {
+        "name": "McDonald's",
+        "industry": "restaurant",
+        "size_class": "enterprise",
+        "channel": "care@mcdonalds.example",
+        "purpose": "order and app issues",
+        "policy_type": "incorrect_charge",
+        "policy_summary": "Refunds incorrect app orders and duplicate charges.",
+        "rules": {
+            "claim_type": "incorrect_charge",
+            "basis": "entitlement",
+            "max_amount": 150,
+            "requires_evidence": True,
+        },
+    },
+    {
+        "name": "Amazon",
+        "industry": "ecommerce",
+        "size_class": "enterprise",
+        "channel": "cs@amazon.example",
+        "purpose": "orders, returns, refunds",
+        "policy_type": "missing_refund",
+        "policy_summary": "Issues refunds for undelivered items and unprocessed returns.",
+        "rules": {
+            "claim_type": "missing_refund",
+            "basis": "entitlement",
+            "max_amount": 1000,
+            "requires_evidence": True,
+        },
+    },
+    {
         "name": "Rosa's Corner Bakery",
         "industry": "restaurant",
-        "size_class": "small_business",  # moral code: never targetable
+        "size_class": "small_business",  # moral code: assist mode only
         "channel": None,
     },
 ]
+
+# NOTE: all seed channels are .example placeholders for the mock adapter.
+# Real company intelligence (verified addresses, sourced policies) is a
+# human-verified data task before any real outreach — never invented.
 
 
 class SeedOut(BaseModel):
@@ -139,6 +232,16 @@ def build_router(
                             eligibility_rules=spec["rules"],
                         )
                     )
+                    for extra in spec.get("extra_policies", []):
+                        session.add(
+                            CompanyPolicy(
+                                company_id=company.id,
+                                policy_type=extra["policy_type"],
+                                verified_at=datetime.now(UTC),
+                                content={"summary": extra["policy_summary"]},
+                                eligibility_rules=extra["rules"],
+                            )
+                        )
             session.commit()
         return SeedOut(user_email=DEMO_EMAIL, companies=names)
 

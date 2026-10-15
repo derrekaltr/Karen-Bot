@@ -10,22 +10,34 @@ import {
   authorizeCase,
   completeIntake,
   createCase,
+  getGeneralCategories,
+  humanize,
   initiateContact,
   listCompanies,
   seed,
   type Company,
 } from "@/lib/api";
 
-/** Category options for the two seeded companies. */
-const CATEGORY_OPTIONS: Record<
-  string,
-  ReadonlyArray<{ value: string; label: string }>
-> = {
-  "Acme Air": [
-    { value: "baggage_delay_expenses", label: "Delayed baggage expenses" },
-  ],
-  Chipotle: [{ value: "incorrect_charge", label: "Incorrect charge" }],
+/** Human labels for known claim types and general categories. */
+const CATEGORY_LABELS: Record<string, string> = {
+  baggage_delay_expenses: "Delayed baggage expenses",
+  flight_cancellation_refund: "Cancelled flight refund",
+  incorrect_charge: "Incorrect charge",
+  fee_dispute: "Fee dispute",
+  missing_refund: "Missing refund",
+  refund_request: "Refund request",
+  service_failure: "Service failure",
+  subscription_cancellation: "Cancel a subscription",
+  bill_negotiation: "Negotiate a bill",
 };
+
+/** Humanized snake_case as fallback for unknown category values. */
+function categoryLabel(value: string): string {
+  return CATEGORY_LABELS[value] ?? humanize(value);
+}
+
+const SMALL_BUSINESS_NOTE =
+  "Karen doesn't pressure small businesses — she'll draft the message and you send it yourself.";
 
 const EVIDENCE_TYPES = [
   { value: "receipt", label: "Receipt" },
@@ -61,13 +73,18 @@ export function GuidedIntake() {
   const [busy, setBusy] = useState(false);
 
   // Step 1 form state
+  const [generalCategories, setGeneralCategories] = useState<string[]>([]);
   const [companyName, setCompanyName] = useState<string | null>(null);
+  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+  const [showOtherInput, setShowOtherInput] = useState(false);
+  const [otherName, setOtherName] = useState("");
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
 
   // Step 2 state
   const [caseId, setCaseId] = useState<string | null>(null);
+  const [contactMode, setContactMode] = useState<"agent" | "assist">("agent");
   const [evidenceType, setEvidenceType] = useState("receipt");
   const [evidenceSummary, setEvidenceSummary] = useState("");
   const [evidenceCount, setEvidenceCount] = useState(0);
@@ -91,9 +108,13 @@ export function GuidedIntake() {
     (async () => {
       try {
         await seed(); // idempotent — safe if dashboard already seeded
-        const result = await listCompanies();
+        const [result, categories] = await Promise.all([
+          listCompanies(),
+          getGeneralCategories(),
+        ]);
         if (cancelled) return;
         setCompanies(result);
+        setGeneralCategories(categories);
         say(
           "karen",
           "Hi, I'm Karen. Tell me what happened and I'll take it from here. Which company wronged you?",
@@ -131,13 +152,32 @@ export function GuidedIntake() {
 
   function pickCompany(company: Company) {
     setError(null);
+    setSelectedCompany(company);
     setCompanyName(company.name);
-    const options = CATEGORY_OPTIONS[company.name] ?? [];
-    setCategory(options[0]?.value ?? "");
+    setShowOtherInput(false);
+    setCategory(company.claim_types[0] ?? generalCategories[0] ?? "");
     say("you", company.name);
     say(
       "karen",
       `${company.name} — noted. What kind of issue is this, what happened, and how much are you owed? Give me the details below.`,
+    );
+    setPhase("details");
+  }
+
+  function pickOtherCompany() {
+    const name = otherName.trim();
+    if (name === "") {
+      setError("Type the company name first.");
+      return;
+    }
+    setError(null);
+    setSelectedCompany(null);
+    setCompanyName(name);
+    setCategory(generalCategories[0] ?? "");
+    say("you", name);
+    say(
+      "karen",
+      `${name} — noted. What kind of issue is this, what happened, and how much are you owed? Give me the details below.`,
     );
     setPhase("details");
   }
@@ -162,6 +202,13 @@ export function GuidedIntake() {
         requested_amount: parsedAmount,
       });
       setCaseId(created.case.id);
+      setContactMode(created.case.contact_mode);
+      if (created.case.contact_mode === "assist") {
+        say(
+          "karen",
+          "One thing to know: this case runs in assist mode. I'll build your case and write the message, but you'll be the one to send it — it lands better coming straight from you.",
+        );
+      }
       for (const question of created.karen_questions) {
         say("karen", question);
       }
@@ -287,8 +334,13 @@ export function GuidedIntake() {
     }
   }
 
-  const categoryOptions =
-    companyName !== null ? (CATEGORY_OPTIONS[companyName] ?? []) : [];
+  // Company-specific claim types first, then the general (assist-mode)
+  // categories, deduplicated by value.
+  const claimTypes = selectedCompany?.claim_types ?? [];
+  const categoryOptions = [
+    ...claimTypes,
+    ...generalCategories.filter((value) => !claimTypes.includes(value)),
+  ].map((value) => ({ value, label: categoryLabel(value) }));
 
   return (
     <div>
@@ -334,25 +386,20 @@ export function GuidedIntake() {
                   <li key={company.id}>
                     <button
                       type="button"
-                      disabled={!company.targetable}
                       onClick={() => pickCompany(company)}
-                      className={`flex min-h-11 w-full items-center justify-between rounded-lg border px-4 py-2.5 text-left text-sm transition-colors ${
-                        company.targetable
-                          ? "border-slate-300 bg-white hover:border-accent-600 hover:bg-accent-50"
-                          : "cursor-not-allowed border-slate-200 bg-slate-50 text-ink-400"
-                      }`}
+                      className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-left text-sm transition-colors hover:border-accent-600 hover:bg-accent-50"
                     >
-                      <span className="font-semibold">{company.name}</span>
-                      {company.targetable ? (
-                        <span className="text-xs text-ink-400">
-                          {company.industry}
-                        </span>
-                      ) : (
-                        <span className="max-w-[60%] text-right text-xs">
-                          KarenBot only takes on large companies — we don&apos;t
-                          go after small businesses
-                        </span>
-                      )}
+                      <span className="flex items-center gap-2">
+                        <span className="font-semibold">{company.name}</span>
+                        {!company.targetable && (
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-ink-600">
+                            assist mode
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-xs text-ink-400">
+                        {company.industry}
+                      </span>
                     </button>
                   </li>
                 ))}
@@ -361,6 +408,56 @@ export function GuidedIntake() {
                     No companies available yet.
                   </li>
                 )}
+                <li>
+                  {showOtherInput ? (
+                    <form
+                      className="rounded-lg border border-slate-300 bg-white p-4"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        pickOtherCompany();
+                      }}
+                    >
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                        <div className="flex flex-1 flex-col gap-1.5">
+                          <label
+                            htmlFor="other-company"
+                            className="text-sm font-medium"
+                          >
+                            Who wronged you?
+                          </label>
+                          <input
+                            id="other-company"
+                            type="text"
+                            autoFocus
+                            placeholder="e.g. Rosa's Corner Bakery"
+                            value={otherName}
+                            onChange={(event) =>
+                              setOtherName(event.target.value)
+                            }
+                            className={inputClasses}
+                          />
+                        </div>
+                        <Button type="submit">That&apos;s them</Button>
+                      </div>
+                      <p className="mt-2 text-xs text-ink-500">
+                        Karen can draft for any company. Direct agent
+                        negotiation unlocks once we&apos;ve verified the
+                        company&apos;s official support channels.
+                      </p>
+                    </form>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setError(null);
+                        setShowOtherInput(true);
+                      }}
+                      className="flex min-h-11 w-full items-center rounded-lg border border-dashed border-slate-300 bg-white px-4 py-2.5 text-left text-sm font-semibold transition-colors hover:border-accent-600 hover:bg-accent-50"
+                    >
+                      Other company…
+                    </button>
+                  )}
+                </li>
               </ul>
             </div>
           )}
@@ -373,6 +470,11 @@ export function GuidedIntake() {
                 void submitDetails();
               }}
             >
+              {selectedCompany !== null && !selectedCompany.targetable && (
+                <p className="rounded-lg bg-slate-50 px-4 py-2.5 text-xs leading-relaxed text-ink-600">
+                  {SMALL_BUSINESS_NOTE}
+                </p>
+              )}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="flex flex-col gap-1.5">
                   <label htmlFor="category" className="text-sm font-medium">
@@ -548,7 +650,11 @@ export function GuidedIntake() {
               )}
               <div>
                 <Button disabled={busy} onClick={() => void sendKaren()}>
-                  {busy ? "Dispatching…" : "Send Karen after them"}
+                  {busy
+                    ? "Dispatching…"
+                    : contactMode === "assist"
+                      ? "Have Karen draft it"
+                      : "Send Karen after them"}
                 </Button>
               </div>
             </div>

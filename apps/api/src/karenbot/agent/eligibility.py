@@ -38,6 +38,16 @@ CUSTOMER_RIGHT_CATEGORIES = frozenset(
 
 
 def assess(session: Session, case: Case) -> EligibilityResult:
+    # Assist-mode cases: the customer pursues their own complaint and Karen
+    # only drafts. No entitlement is asserted against anyone, so no verified
+    # company policy is required.
+    if case.contact_mode == "assist":
+        return EligibilityResult(
+            eligible=True,
+            basis="customer_request",
+            policy_id=None,
+            reasons=["assist_mode_customer_own_complaint"],
+        )
     if case.category in CUSTOMER_RIGHT_CATEGORIES:
         return EligibilityResult(
             eligible=True,

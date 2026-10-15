@@ -42,18 +42,34 @@ def test_full_lifecycle_over_http(client):
     assert companies["Acme Air"]["targetable"] is True
     assert companies["Rosa's Corner Bakery"]["targetable"] is False
 
-    # Moral code enforced over HTTP.
+    # Moral code over HTTP: small businesses get ASSIST mode (Karen drafts,
+    # the customer sends) — never agent contact.
     r = http.post(
         "/cases",
         headers=HEADERS,
         json={
             "company_name": "Rosa's Corner Bakery",
-            "category": "refund",
+            "category": "refund_request",
             "description": "x",
             "requested_amount": "20",
         },
     )
-    assert r.status_code == 422
+    assert r.status_code == 200
+    assert r.json()["case"]["contact_mode"] == "assist"
+
+    # Unknown companies work too: created unclassified -> assist mode.
+    r = http.post(
+        "/cases",
+        headers=HEADERS,
+        json={
+            "company_name": "Totally New Gym LLC",
+            "category": "subscription_cancellation",
+            "description": "Cancel my membership please.",
+            "requested_amount": None,
+        },
+    )
+    assert r.status_code == 200
+    assert r.json()["case"]["contact_mode"] == "assist"
 
     # Create a real case; Karen asks for missing evidence.
     r = http.post(
