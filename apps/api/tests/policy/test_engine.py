@@ -231,3 +231,21 @@ def test_case_id_mismatch_denies():
     decision = evaluate(make_send(case_id=uuid.uuid4()), make_ctx(), now=NOW)
     assert decision.decision == PolicyDecisionType.DENY
     assert "action_case_mismatch" in decision.reasons
+
+
+def test_escalation_requires_prior_regular_contact():
+    from karenbot.agent.actions import RecommendEscalation
+
+    action = RecommendEscalation(
+        case_id=CASE_ID,
+        purpose="escalate",
+        target_support_channel_id=CHANNEL_ID,
+        reason="no response",
+    )
+    auth = make_auth(authorized_actions=frozenset({"recommend_escalation"}))
+    decision = evaluate(action, make_ctx(authorization=auth, outbound_count_total=0), now=NOW)
+    assert decision.decision == PolicyDecisionType.DENY
+    assert "escalation_before_first_contact" in decision.reasons
+
+    decision = evaluate(action, make_ctx(authorization=auth, outbound_count_total=2), now=NOW)
+    assert decision.decision == PolicyDecisionType.ALLOW

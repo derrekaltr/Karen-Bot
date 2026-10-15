@@ -88,6 +88,10 @@ def evaluate(
     elif isinstance(action, RecommendEscalation):
         if action.target_support_channel_id not in ctx.verified_support_channel_ids:
             deny.append("escalation_target_not_verified")
+        # Proportionality: executive/escalation channels are never the first
+        # move — the regular channel must have been tried first.
+        if ctx.outbound_count_total == 0:
+            deny.append("escalation_before_first_contact")
 
     if deny:
         return PolicyDecision(PolicyDecisionType.DENY, deny)
