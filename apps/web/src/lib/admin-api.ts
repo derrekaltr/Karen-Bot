@@ -167,3 +167,44 @@ export function getInterventionQueue(
 export function getAdminMetrics(token: string): Promise<AdminMetrics> {
   return adminRequest(token, "/admin/metrics");
 }
+
+// ---------------------------------------------------------------------------
+// Support channels (verification workflow)
+// ---------------------------------------------------------------------------
+
+export interface AdminChannel {
+  id: string;
+  company_name: string;
+  channel: string;
+  address: string;
+  purpose: string;
+  is_escalation: boolean;
+  verified: boolean;
+  verification_source_url: string | null;
+}
+
+export function listChannels(
+  token: string,
+  verified?: boolean,
+): Promise<AdminChannel[]> {
+  const query = verified === undefined ? "" : `?verified=${verified}`;
+  return adminRequest(token, `/admin/channels${query}`);
+}
+
+export function verifyChannel(
+  token: string,
+  channelId: string,
+): Promise<{ verified: boolean; address: string }> {
+  return adminRequest(token, `/admin/channels/${channelId}/verify`, {
+    method: "POST",
+  });
+}
+
+export function deactivateChannel(
+  token: string,
+  channelId: string,
+): Promise<{ active: boolean }> {
+  return adminRequest(token, `/admin/channels/${channelId}/deactivate`, {
+    method: "POST",
+  });
+}

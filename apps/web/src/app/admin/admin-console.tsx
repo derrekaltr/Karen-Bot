@@ -19,11 +19,15 @@ import {
   getKillSwitch,
   getStoredAdminToken,
   listAdminCases,
+  deactivateChannel,
+  listChannels,
   pauseCase,
   resumeCase,
   setKillSwitch,
   storeAdminToken,
+  verifyChannel,
   type AdminCase,
+  type AdminChannel,
   type AdminMetrics,
   type InterventionItem,
   type InterventionKind,
@@ -163,6 +167,114 @@ function MetricsSection({ metrics }: { metrics: AdminMetrics }) {
             ))}
           </ul>
         </Card>
+      )}
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Support channels (verification workflow)
+// ---------------------------------------------------------------------------
+
+function ChannelsSection({
+  channels,
+  busyChannelId,
+  onVerify,
+  onDeactivate,
+}: {
+  channels: AdminChannel[];
+  busyChannelId: string | null;
+  onVerify: (id: string) => void;
+  onDeactivate: (id: string) => void;
+}) {
+  const unverified = channels.filter((c) => !c.verified);
+  const verified = channels.filter((c) => c.verified);
+  return (
+    <section aria-label="Support channels">
+      <h2 className="text-base font-semibold">
+        Support channels — verification queue ({unverified.length} pending)
+      </h2>
+      <p className="mt-1 text-sm text-ink-600">
+        Karen can only send to verified channels. Open each source link,
+        confirm the address matches, then verify. Verifications are audited.
+      </p>
+      <ul className="mt-3 flex flex-col gap-3">
+        {unverified.map((channel) => (
+          <li key={channel.id}>
+            <Card className="border-amber-300/60">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold">
+                    {channel.company_name}
+                    <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-ink-600">
+                      {channel.channel}
+                    </span>
+                    {channel.is_escalation && (
+                      <span className="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                        escalation
+                      </span>
+                    )}
+                  </p>
+                  <p className="mt-1 break-all font-mono text-sm text-ink-900">
+                    {channel.address}
+                  </p>
+                  <p className="mt-0.5 text-xs text-ink-600">{channel.purpose}</p>
+                  {channel.verification_source_url && (
+                    <a
+                      href={channel.verification_source_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-1 inline-block text-xs font-semibold text-accent-600 hover:text-accent-700"
+                    >
+                      Open source to verify ↗
+                    </a>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    disabled={busyChannelId === channel.id}
+                    onClick={() => onVerify(channel.id)}
+                  >
+                    Verify
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    disabled={busyChannelId === channel.id}
+                    onClick={() => onDeactivate(channel.id)}
+                  >
+                    Reject
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          </li>
+        ))}
+      </ul>
+      {unverified.length === 0 && (
+        <p className="mt-3 text-sm text-ink-400">
+          No channels awaiting verification.
+        </p>
+      )}
+      {verified.length > 0 && (
+        <details className="mt-3">
+          <summary className="cursor-pointer text-sm font-semibold text-ink-600">
+            Verified channels ({verified.length})
+          </summary>
+          <ul className="mt-2 flex flex-col gap-1">
+            {verified.map((channel) => (
+              <li
+                key={channel.id}
+                className="rounded-lg bg-slate-50 px-3 py-2 text-sm"
+              >
+                <span className="font-semibold">{channel.company_name}</span>{" "}
+                <span className="font-mono">{channel.address}</span>
+                <span className="ml-2 text-xs text-ink-400">
+                  {channel.channel}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
     </section>
   );
@@ -377,6 +489,8 @@ export function AdminConsole() {
   const [killSwitchActive, setKillSwitchActive] = useState<boolean | null>(
     null,
   );
+  const [channels, setChannels] = useState<AdminChannel[] | null>(null);
+  const [busyChannelId, setBusyChannelId] = useState<string | null>(null);
 
   const [loadError, setLoadError] = useState<string | null>(null);
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
@@ -405,17 +519,24 @@ export function AdminConsole() {
       if (inFlight.current) return;
       inFlight.current = true;
       try {
-        const [metricsResult, queueResult, casesResult, killSwitchResult] =
-          await Promise.all([
-            getAdminMetrics(activeToken),
-            getInterventionQueue(activeToken),
-            listAdminCases(activeToken),
-            getKillSwitch(activeToken),
-          ]);
+        const [
+          metricsResult,
+          queueResult,
+          casesResult,
+          killSwitchResult,
+          channelsResult,
+        ] = await Promise.all([
+          getAdminMetrics(activeToken),
+          getInterventionQueue(activeToken),
+          listAdminCases(activeToken),
+          getKillSwitch(activeToken),
+          listChannels(activeToken),
+        ]);
         setMetrics(metricsResult);
         setQueue(queueResult);
         setCases(casesResult);
         setKillSwitchActive(killSwitchResult.kill_switch_active);
+        setChannels(channelsResult);
         setLoadError(null);
       } catch (err) {
         if (err instanceof ApiError && err.status === 403) {
@@ -433,6 +554,33 @@ export function AdminConsole() {
     },
     [handleForbidden],
   );
+
+  async function handleChannelAction(
+    channelId: string,
+    action: "verify" | "deactivate",
+  ) {
+    if (token === null) return;
+    if (
+      action === "deactivate" &&
+      !window.confirm("Reject this channel? It will be hidden from Karen.")
+    ) {
+      return;
+    }
+    setBusyChannelId(channelId);
+    try {
+      if (action === "verify") await verifyChannel(token, channelId);
+      else await deactivateChannel(token, channelId);
+      await refresh(token);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) handleForbidden();
+      else
+        setLoadError(
+          err instanceof Error ? err.message : "Channel action failed.",
+        );
+    } finally {
+      setBusyChannelId(null);
+    }
+  }
 
   useEffect(() => {
     if (token === null) return;
@@ -584,6 +732,16 @@ export function AdminConsole() {
         ) : (
           <div className="mt-6 space-y-8">
             <MetricsSection metrics={metrics} />
+            {channels !== null && (
+              <ChannelsSection
+                channels={channels}
+                busyChannelId={busyChannelId}
+                onVerify={(id) => void handleChannelAction(id, "verify")}
+                onDeactivate={(id) =>
+                  void handleChannelAction(id, "deactivate")
+                }
+              />
+            )}
             <InterventionQueueSection items={queue} />
             <CasesSection
               cases={cases}
