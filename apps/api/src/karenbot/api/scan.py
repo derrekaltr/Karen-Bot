@@ -62,7 +62,7 @@ def build_router() -> APIRouter:
         user: User = Depends(current_user), db: Session = Depends(get_db)
     ) -> InboxScanOut:
         try:
-            scanner = get_inbox_scanner()
+            scanner = get_inbox_scanner(db, user)
         except NotImplementedError as exc:
             raise HTTPException(503, str(exc)) from exc
         from karenbot.discovery.inbox_scan import MockInboxScanner
@@ -105,7 +105,7 @@ def build_router() -> APIRouter:
         if case is None or case.user_id != user.id:
             raise HTTPException(404, "case not found")
         try:
-            scanner = get_inbox_scanner()
+            scanner = get_inbox_scanner(db, user)
         except NotImplementedError as exc:
             raise HTTPException(503, str(exc)) from exc
         from karenbot.discovery.inbox_scan import MockInboxScanner

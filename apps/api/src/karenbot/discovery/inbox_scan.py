@@ -136,11 +136,30 @@ class MockInboxScanner:
         return hits
 
 
-def get_inbox_scanner() -> InboxScanner:
+def get_inbox_scanner(session=None, user=None) -> InboxScanner:
+    """Live scanner when the user has a connected Gmail account; the mock
+    demo inbox otherwise (dev mode only)."""
+    if session is not None and user is not None:
+        from sqlalchemy import select
+
+        from karenbot.channels.resolver import _token_getter
+        from karenbot.discovery.gmail_scanner import GmailInboxScanner
+        from karenbot.domain.models import ConnectedAccount
+
+        account = session.scalars(
+            select(ConnectedAccount).where(
+                ConnectedAccount.user_id == user.id,
+                ConnectedAccount.provider == "gmail",
+                ConnectedAccount.status == "active",
+                ConnectedAccount.revoked_at.is_(None),
+            )
+        ).first()
+        if account is not None and account.encrypted_token_reference:
+            return GmailInboxScanner(_token_getter(account.id, "gmail"))
+
     settings = get_settings()
     if settings.email_provider == "mock" or settings.dev_mode:
         return MockInboxScanner()
     raise NotImplementedError(
-        "provider-backed inbox scanning lands with live email accounts; "
-        "requires a connected mailbox"
+        "inbox scanning requires a connected email account"
     )
