@@ -7,6 +7,7 @@ import { Card } from "@/components/Card";
 import {
   ApiError,
   addEvidence,
+  attachEvidenceGroup,
   scanCaseEvidence,
   authorizeCase,
   completeIntake,
@@ -19,6 +20,7 @@ import {
   type CategoryCatalog,
   type CategoryOption,
   type Company,
+  type EvidenceGroup,
 } from "@/lib/api";
 
 /**
@@ -135,6 +137,8 @@ export function GuidedIntake() {
   const [evidenceType, setEvidenceType] = useState("receipt");
   const [evidenceSummary, setEvidenceSummary] = useState("");
   const [evidenceCount, setEvidenceCount] = useState(0);
+  /** Scan found several trips/orders — the user must pick one. */
+  const [pendingGroups, setPendingGroups] = useState<EvidenceGroup[]>([]);
 
   // Step 3 state
   const [signedName, setSignedName] = useState("");
@@ -185,7 +189,7 @@ export function GuidedIntake() {
 
   useEffect(() => {
     transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [transcript, phase]);
+  }, [transcript, phase, pendingGroups]);
 
   function failWith(err: unknown) {
     setError(
@@ -323,7 +327,14 @@ export function GuidedIntake() {
         result.source === "mock"
           ? " (Heads up: I'm scanning a demo inbox until your real email is connected.)"
           : "";
-      if (found.length === 0 && result.total_matches > 0) {
+      if (result.groups.length > 0) {
+        say(
+          "karen",
+          `I found emails from ${result.groups.length} different ` +
+            `trips/orders — tell me which one this is about:${demoNote}`,
+        );
+        setPendingGroups(result.groups);
+      } else if (found.length === 0 && result.total_matches > 0) {
         say(
           "karen",
           `Nothing new — I already attached ${result.total_matches} item` +
@@ -348,6 +359,31 @@ export function GuidedIntake() {
         );
         setEvidenceCount((n) => n + found.length);
       }
+    } catch (err) {
+      failWith(err);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** The user picked which trip/order the case is about — attach its hits. */
+  async function pickEvidenceGroup(group: EvidenceGroup) {
+    if (caseId === null) return;
+    setError(null);
+    setBusy(true);
+    say("you", group.label);
+    try {
+      const attached = await attachEvidenceGroup(caseId, group.hits);
+      setPendingGroups([]);
+      for (const item of attached) {
+        say("karen", `Found and attached: ${item.summary}`);
+      }
+      say(
+        "karen",
+        `That's ${attached.length} piece${attached.length === 1 ? "" : "s"} ` +
+          "of evidence from your inbox. Anything else, or are we done here?",
+      );
+      setEvidenceCount((n) => n + attached.length);
     } catch (err) {
       failWith(err);
     } finally {
@@ -467,6 +503,37 @@ export function GuidedIntake() {
             {phase === "loading" && (
               <li className="self-start text-sm text-ink-400">
                 Connecting to Karen…
+              </li>
+            )}
+            {pendingGroups.length > 0 && (
+              <li className="max-w-[85%] self-start">
+                <ul className="flex flex-col gap-2">
+                  {pendingGroups.map((group) => (
+                    <li key={group.key}>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void pickEvidenceGroup(group)}
+                        className="flex min-h-11 w-full flex-col gap-1 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-left transition-colors hover:border-accent-600 hover:bg-accent-50 disabled:opacity-60"
+                      >
+                        <span className="text-sm font-semibold">
+                          {group.label}
+                        </span>
+                        {group.hits.slice(0, 2).map((hit) => (
+                          <span
+                            key={hit.reference}
+                            className="block truncate text-xs text-ink-600"
+                          >
+                            {hit.summary}
+                          </span>
+                        ))}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-xs text-ink-500">
+                  Karen never mixes different situations into one case.
+                </p>
               </li>
             )}
           </ul>

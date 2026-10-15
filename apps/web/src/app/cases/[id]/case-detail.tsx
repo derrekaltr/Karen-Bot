@@ -16,24 +16,29 @@ import {
   getCase,
   humanize,
   initiateContact,
+  attachEvidenceGroup,
   listApprovals,
   listAudit,
+  listCaseEvidence,
   listCommunications,
+  removeCaseEvidence,
   revokeCase,
   scanCaseEvidence,
+  type CaseEvidenceItem,
+  type EvidenceGroup,
   type EvidenceScanResult,
   type Approval,
   type AuditEvent,
   type Case,
   type Communication,
   type Persona,
-  type ScanEvidence,
 } from "@/lib/api";
 
 const EVIDENCE_COLLAPSE_COUNT = 3;
 
 const POLL_INTERVAL_MS = 3000;
 const BODY_TRUNCATE_LENGTH = 400;
+const EVIDENCE_SUMMARY_TRUNCATE_LENGTH = 120;
 
 interface CaseData {
   caseRecord: Case;
@@ -55,6 +60,22 @@ export function CaseDetail({ caseId }: { caseId: string }) {
   const [evidenceScanning, setEvidenceScanning] = useState(false);
   const [scanResult, setScanResult] = useState<EvidenceScanResult | null>(null);
   const [showAllEvidence, setShowAllEvidence] = useState(false);
+  const [evidenceOnFile, setEvidenceOnFile] = useState<CaseEvidenceItem[]>([]);
+  const [expandedEvidence, setExpandedEvidence] = useState<Set<string>>(
+    new Set(),
+  );
+
+  const refetchEvidence = useCallback(async () => {
+    try {
+      setEvidenceOnFile(await listCaseEvidence(caseId));
+    } catch {
+      // non-fatal — the section just shows the last known list
+    }
+  }, [caseId]);
+
+  useEffect(() => {
+    void refetchEvidence();
+  }, [refetchEvidence]);
 
   const refetch = useCallback(async () => {
     try {
@@ -150,10 +171,45 @@ export function CaseDetail({ caseId }: { caseId: string }) {
         const result = await scanCaseEvidence(caseId);
         setScanResult(result);
         setShowAllEvidence(false);
+        await refetchEvidence();
       });
     } finally {
       setEvidenceScanning(false);
     }
+  }
+
+  /** The user picked which trip/order the case is about — attach its hits. */
+  async function pickEvidenceGroup(group: EvidenceGroup) {
+    await runAction(async () => {
+      const attached = await attachEvidenceGroup(caseId, group.hits);
+      setScanResult((prev) => ({
+        source: prev?.source ?? "live",
+        attached,
+        total_matches: prev?.total_matches ?? attached.length,
+        groups: [],
+      }));
+      setShowAllEvidence(false);
+      await refetchEvidence();
+    });
+  }
+
+  async function removeEvidence(evidenceId: string) {
+    await runAction(async () => {
+      await removeCaseEvidence(caseId, evidenceId);
+      await refetchEvidence();
+    });
+  }
+
+  function toggleEvidenceExpanded(id: string) {
+    setExpandedEvidence((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
   }
 
   async function copyBody(comm: Communication) {
@@ -512,7 +568,40 @@ export function CaseDetail({ caseId }: { caseId: string }) {
       </div>
 
       {/* Inbox evidence scan result */}
-      {scanResult !== null && (
+      {scanResult !== null && scanResult.groups.length > 0 && (
+        <Card className="border-accent-500/50 bg-accent-50/60">
+          <h2 className="text-base font-semibold">
+            These look like different trips/orders — which one is this case
+            about?
+          </h2>
+          <ul className="mt-3 flex flex-col gap-3">
+            {scanResult.groups.map((group) => (
+              <li key={group.key}>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void pickEvidenceGroup(group)}
+                  className="flex min-h-11 w-full flex-col gap-1 rounded-lg border border-slate-300 bg-white px-4 py-3 text-left transition-colors hover:border-accent-600 hover:bg-accent-50 disabled:opacity-60"
+                >
+                  <span className="text-sm font-semibold">{group.label}</span>
+                  {group.hits.slice(0, 2).map((hit) => (
+                    <span
+                      key={hit.reference}
+                      className="block truncate text-xs text-ink-600"
+                    >
+                      {hit.summary}
+                    </span>
+                  ))}
+                </button>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-xs text-ink-500">
+            Karen never mixes different situations into one case.
+          </p>
+        </Card>
+      )}
+      {scanResult !== null && scanResult.groups.length === 0 && (
         <Card>
           {scanResult.attached.length === 0 ? (
             <p className="text-sm text-ink-600">
@@ -554,6 +643,60 @@ export function CaseDetail({ caseId }: { caseId: string }) {
           )}
         </Card>
       )}
+
+      {/* Evidence on file */}
+      <details className="rounded-xl border border-slate-200">
+        <summary className="cursor-pointer px-5 py-4 text-sm font-semibold">
+          Evidence on file ({evidenceOnFile.length})
+        </summary>
+        <ul className="border-t border-slate-200 px-5 py-4">
+          {evidenceOnFile.map((item) => {
+            const expanded = expandedEvidence.has(item.id);
+            const needsTruncation =
+              item.summary.length > EVIDENCE_SUMMARY_TRUNCATE_LENGTH &&
+              !expanded;
+            const summaryText = needsTruncation
+              ? `${item.summary.slice(0, EVIDENCE_SUMMARY_TRUNCATE_LENGTH)}…`
+              : item.summary;
+            return (
+              <li
+                key={item.id}
+                className="flex items-start gap-3 border-b border-slate-100 py-2 text-sm last:border-b-0"
+              >
+                <div className="min-w-0 flex-1">
+                  <span className="mr-2 rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-ink-600">
+                    {humanize(item.evidence_type)}
+                  </span>
+                  <span className="leading-relaxed">{summaryText}</span>
+                  {item.summary.length > EVIDENCE_SUMMARY_TRUNCATE_LENGTH && (
+                    <button
+                      type="button"
+                      onClick={() => toggleEvidenceExpanded(item.id)}
+                      className="ml-2 text-sm font-semibold text-accent-600 hover:text-accent-700"
+                    >
+                      {expanded ? "Show less" : "Show more"}
+                    </button>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  aria-label={`Remove evidence: ${item.summary.slice(0, 60)}`}
+                  disabled={busy}
+                  onClick={() => void removeEvidence(item.id)}
+                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-xs font-semibold text-ink-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-60"
+                >
+                  ✕
+                </button>
+              </li>
+            );
+          })}
+          {evidenceOnFile.length === 0 && (
+            <li className="py-2 text-sm text-ink-400">
+              No evidence on file yet.
+            </li>
+          )}
+        </ul>
+      </details>
 
       {/* Dev simulator */}
       <div className="rounded-xl border border-dashed border-slate-300 p-5">

@@ -15,20 +15,22 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.alter_column(
-        "connected_accounts",
-        "encrypted_token_reference",
-        type_=sa.Text(),
-        existing_type=sa.String(500),
-        existing_nullable=True,
-    )
+    # batch_alter_table for SQLite compatibility (table-rebuild there;
+    # plain ALTER on Postgres).
+    with op.batch_alter_table("connected_accounts") as batch:
+        batch.alter_column(
+            "encrypted_token_reference",
+            type_=sa.Text(),
+            existing_type=sa.String(500),
+            existing_nullable=True,
+        )
 
 
 def downgrade() -> None:
-    op.alter_column(
-        "connected_accounts",
-        "encrypted_token_reference",
-        type_=sa.String(500),
-        existing_type=sa.Text(),
-        existing_nullable=True,
-    )
+    with op.batch_alter_table("connected_accounts") as batch:
+        batch.alter_column(
+            "encrypted_token_reference",
+            type_=sa.String(500),
+            existing_type=sa.Text(),
+            existing_nullable=True,
+        )

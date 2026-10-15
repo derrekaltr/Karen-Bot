@@ -272,6 +272,60 @@ class EvidenceIn(BaseModel):
     summary: str
 
 
+class EvidenceItemOut(BaseModel):
+    id: uuid.UUID
+    evidence_type: str
+    summary: str | None
+    source: str
+
+    model_config = {"from_attributes": True}
+
+
+@app.get("/cases/{case_id}/evidence", response_model=list[EvidenceItemOut])
+def list_evidence(
+    case_id: uuid.UUID,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    case = _owned_case(db, case_id, user)
+    from karenbot.domain.models import CaseEvidence
+
+    return list(
+        db.scalars(
+            select(CaseEvidence)
+            .where(CaseEvidence.case_id == case.id)
+            .order_by(CaseEvidence.created_at)
+        )
+    )
+
+
+@app.delete("/cases/{case_id}/evidence/{evidence_id}")
+def remove_evidence(
+    case_id: uuid.UUID,
+    evidence_id: uuid.UUID,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    case = _owned_case(db, case_id, user)
+    from karenbot.domain.enums import ActorType
+    from karenbot.domain.models import AuditEvent, CaseEvidence
+
+    evidence = db.get(CaseEvidence, evidence_id)
+    if evidence is None or evidence.case_id != case.id:
+        raise HTTPException(404, "evidence not found")
+    db.add(
+        AuditEvent(
+            actor_type=ActorType.CUSTOMER.value,
+            actor_id=str(user.id),
+            case_id=case.id,
+            event_type="evidence.removed",
+            event_payload={"evidence_id": str(evidence_id), "summary": (evidence.summary or "")[:120]},
+        )
+    )
+    db.delete(evidence)
+    return {"removed": str(evidence_id)}
+
+
 @app.post("/cases/{case_id}/evidence", response_model=CaseOut)
 def add_evidence(
     case_id: uuid.UUID,

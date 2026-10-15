@@ -201,11 +201,39 @@ export interface InboxScanResult {
   candidates: ClaimCandidate[];
 }
 
+/** A single matching email found by an evidence scan, not yet attached. */
+export interface ScanHit {
+  reference: string;
+  summary: string;
+  snippet: string;
+}
+
+/**
+ * Matches that share one trip/order. When a scan spans several groups and
+ * the case doesn't name one, the user must pick a group before anything is
+ * attached — one case is one situation, never a blend.
+ */
+export interface EvidenceGroup {
+  key: string;
+  label: string;
+  hits: ScanHit[];
+}
+
 export interface EvidenceScanResult {
   source: ScanSource;
   attached: ScanEvidence[];
   /** Matches including ones attached by earlier scans. */
   total_matches: number;
+  /** Non-empty when matches span multiple trips/orders (attached is then []). */
+  groups: EvidenceGroup[];
+}
+
+/** Evidence item on file for a case, from any source. */
+export interface CaseEvidenceItem {
+  id: string;
+  evidence_type: string;
+  summary: string;
+  source: string;
 }
 
 export const PERSONAS = [
@@ -238,7 +266,7 @@ export class ApiError extends Error {
 
 async function request<T>(
   path: string,
-  init?: { method?: "GET" | "POST"; body?: unknown },
+  init?: { method?: "GET" | "POST" | "DELETE"; body?: unknown },
 ): Promise<T> {
   const response = await fetch(`${BASE_URL}${path}`, {
     method: init?.method ?? "GET",
@@ -375,6 +403,35 @@ export function scanInbox(): Promise<InboxScanResult> {
  */
 export function scanCaseEvidence(caseId: string): Promise<EvidenceScanResult> {
   return request(`/scan/cases/${caseId}/evidence`, { method: "POST" });
+}
+
+/**
+ * Attach the hits of a user-chosen scan group as evidence. Used after an
+ * ambiguous scan where the user picked which trip/order the case is about.
+ * Idempotent on repeat for the same items.
+ */
+export function attachEvidenceGroup(
+  caseId: string,
+  items: ScanHit[],
+): Promise<ScanEvidence[]> {
+  return request(`/scan/cases/${caseId}/evidence/attach`, {
+    method: "POST",
+    body: { items },
+  });
+}
+
+/** All evidence currently on file for a case. */
+export function listCaseEvidence(caseId: string): Promise<CaseEvidenceItem[]> {
+  return request(`/cases/${caseId}/evidence`);
+}
+
+export function removeCaseEvidence(
+  caseId: string,
+  evidenceId: string,
+): Promise<{ removed: boolean }> {
+  return request(`/cases/${caseId}/evidence/${evidenceId}`, {
+    method: "DELETE",
+  });
 }
 
 export function devTick(input: {

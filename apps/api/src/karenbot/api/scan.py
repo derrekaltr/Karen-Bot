@@ -44,12 +44,32 @@ class InboxScanOut(BaseModel):
     candidates: list[CandidateOut]
 
 
+class HitOut(BaseModel):
+    reference: str
+    summary: str
+    snippet: str
+
+
+class GroupOut(BaseModel):
+    key: str
+    label: str
+    hits: list[HitOut]
+
+
 class EvidenceScanOut(BaseModel):
     source: str
     attached: list[EvidenceOut]
     # Total matches including ones attached by earlier scans, so the UI can
     # say "nothing NEW" instead of pretending nothing exists.
     total_matches: int
+    # When matches span multiple trips/orders and the case doesn't name one,
+    # NOTHING auto-attaches — the user picks a group (one case = one
+    # situation, never blended).
+    groups: list[GroupOut] = []
+
+
+class AttachIn(BaseModel):
+    items: list[HitOut]
 
 
 def build_router() -> APIRouter:
@@ -108,6 +128,7 @@ def build_router() -> APIRouter:
             scanner = get_inbox_scanner(db, user)
         except NotImplementedError as exc:
             raise HTTPException(503, str(exc)) from exc
+        from karenbot.discovery.grouping import group_hits, match_group_to_case
         from karenbot.discovery.inbox_scan import MockInboxScanner
 
         source = "mock" if isinstance(scanner, MockInboxScanner) else "live"
@@ -115,32 +136,47 @@ def build_router() -> APIRouter:
         keywords = [case.category, *case.category.split("_")]
         hits = scanner.find_evidence(company.name, keywords)
 
-        # Idempotent on the scan reference.
-        existing_refs = {
-            e.encrypted_storage_reference
-            for e in db.scalars(select(CaseEvidence).where(CaseEvidence.case_id == case.id))
-        }
-        added: list[CaseEvidence] = []
-        for hit in hits:
-            if f"scan:{hit.reference}" in existing_refs:
-                continue
-            evidence = CaseEvidence(
-                case_id=case.id,
-                evidence_type="email_scan",
-                summary=f"{hit.summary} — {hit.snippet}"[:1000],
-                source="email_scan",
-                encrypted_storage_reference=f"scan:{hit.reference}",
+        groups = group_hits(hits)
+        import json as _json
+
+        case_text = f"{case.description} {_json.dumps(case.facts or {})}"
+        chosen = match_group_to_case(groups, case_text)
+
+        if chosen is None and len(groups) > 1:
+            # Ambiguous: multiple situations found — the user must pick.
+            return EvidenceScanOut(
+                source=source,
+                attached=[],
+                total_matches=len(hits),
+                groups=[
+                    GroupOut(
+                        key=g.key,
+                        label=g.label,
+                        hits=[
+                            HitOut(reference=h.reference, summary=h.summary, snippet=h.snippet)
+                            for h in g.hits
+                        ],
+                    )
+                    for g in groups
+                ],
             )
-            db.add(evidence)
-            added.append(evidence)
-        db.flush()
+
+        to_attach = chosen.hits if chosen is not None else hits
+        added = _attach_hits(db, case, [
+            HitOut(reference=h.reference, summary=h.summary, snippet=h.snippet)
+            for h in to_attach
+        ])
         db.add(
             AuditEvent(
                 actor_type=ActorType.CUSTOMER.value,
                 actor_id=str(user.id),
                 case_id=case.id,
                 event_type="scan.evidence_attached",
-                event_payload={"hits": len(added), "total_matches": len(hits)},
+                event_payload={
+                    "hits": len(added),
+                    "total_matches": len(hits),
+                    "group": chosen.key if chosen else None,
+                },
             )
         )
         return EvidenceScanOut(
@@ -148,5 +184,49 @@ def build_router() -> APIRouter:
             attached=[EvidenceOut.model_validate(e, from_attributes=True) for e in added],
             total_matches=len(hits),
         )
+
+    def _attach_hits(db: Session, case: Case, items: list[HitOut]) -> list[CaseEvidence]:
+        existing_refs = {
+            e.encrypted_storage_reference
+            for e in db.scalars(select(CaseEvidence).where(CaseEvidence.case_id == case.id))
+        }
+        added: list[CaseEvidence] = []
+        for item in items:
+            if f"scan:{item.reference}" in existing_refs:
+                continue
+            evidence = CaseEvidence(
+                case_id=case.id,
+                evidence_type="email_scan",
+                summary=f"{item.summary} — {item.snippet}"[:1000],
+                source="email_scan",
+                encrypted_storage_reference=f"scan:{item.reference}",
+            )
+            db.add(evidence)
+            added.append(evidence)
+        db.flush()
+        return added
+
+    @router.post("/cases/{case_id}/evidence/attach", response_model=list[EvidenceOut])
+    def attach_chosen_group(
+        case_id: uuid.UUID,
+        payload: AttachIn,
+        user: User = Depends(current_user),
+        db: Session = Depends(get_db),
+    ) -> list[CaseEvidence]:
+        """Attach the user's chosen trip/order group from a prior scan."""
+        case = db.get(Case, case_id)
+        if case is None or case.user_id != user.id:
+            raise HTTPException(404, "case not found")
+        added = _attach_hits(db, case, payload.items)
+        db.add(
+            AuditEvent(
+                actor_type=ActorType.CUSTOMER.value,
+                actor_id=str(user.id),
+                case_id=case.id,
+                event_type="scan.evidence_group_attached",
+                event_payload={"hits": len(added)},
+            )
+        )
+        return added
 
     return router
