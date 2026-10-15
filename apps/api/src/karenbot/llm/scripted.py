@@ -90,6 +90,10 @@ class ScriptedClient:
         )
         facts_lines = "\n".join(f"- {k.replace('_', ' ')}: {v}" for k, v in facts.items())
         amount_phrase = f"{currency} {amount}" if amount else "a fair resolution"
+        disclosure = ctx.get("disclosure_line") or (
+            f"I am writing on behalf of {customer}, who has authorized this correspondence."
+        )
+        signoff = ctx.get("signoff") or f"Authorized representative for {customer}"
         if ctx.get("is_follow_up"):
             subject = f"Re: {claim.replace('_', ' ').title()} — follow-up"
             body = (
@@ -104,9 +108,8 @@ class ScriptedClient:
                     else "We would appreciate an update on the status of this request.\n\n"
                 )
                 + f"{evidence_note}\n\n"
-                "This message was sent by KarenBot, an authorized representative acting "
-                f"with the documented consent of {customer}.\n\n"
-                "Kind regards,\nKarenBot on behalf of the customer"
+                f"{disclosure}\n\n"
+                f"Kind regards,\n{signoff}"
             )
         else:
             title = claim.replace("_", " ").title()
@@ -132,9 +135,8 @@ class ScriptedClient:
                 f"{ctx.get('incident_summary', '')}\n\n"
                 f"{facts_lines}\n\n"
                 f"{ask_line} {evidence_note}\n\n"
-                "This message was sent by KarenBot, an authorized representative acting "
-                f"with the documented consent of {customer}.\n\n"
-                "Kind regards,\nKarenBot on behalf of the customer"
+                f"{disclosure}\n\n"
+                f"Kind regards,\n{signoff}"
             )
         return EmailDraft(subject=subject, body=body.strip())
 

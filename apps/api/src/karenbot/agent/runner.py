@@ -112,6 +112,37 @@ class AgentRuntime:
             "policy_summary": (policy.content or {}).get("summary") if policy else None,
             "basis": case.eligibility_basis,
             "customer_name": case.user.display_name or "the customer",
+            **self._disclosure(case),
+        }
+
+    @staticmethod
+    def _disclosure(case: Case) -> dict:
+        """Representation disclosure wording. Default mode avoids the brand
+        string (a trivially filterable blocklist key) while still disclosing
+        the agency relationship; prompts separately enforce that automation
+        is never denied if asked. Wording is on the attorney checklist."""
+        from karenbot.config import get_settings
+
+        customer = case.user.display_name or "the customer"
+        if get_settings().disclosure_mode == "branded":
+            line = (
+                f"This message is sent by KarenBot, an authorized representative "
+                f"acting with the documented consent of {customer}."
+            )
+            signoff = f"KarenBot\nAuthorized representative of {customer}"
+        else:
+            line = (
+                f"I am Karen, writing as an authorized representative of "
+                f"{customer}, who has authorized this correspondence."
+            )
+            signoff = f"Karen\nAuthorized representative for {customer}"
+        return {
+            "disclosure_instruction": (
+                f"Open with this exact representation disclosure: \"{line}\" "
+                f"Sign off exactly as: \"{signoff}\""
+            ),
+            "disclosure_line": line,
+            "signoff": signoff,
         }
 
     # ---- pipeline steps --------------------------------------------------

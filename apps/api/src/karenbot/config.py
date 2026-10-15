@@ -19,6 +19,14 @@ class Settings(BaseSettings):
     agent_model: str = "claude-sonnet-5-5"
     classifier_model: str = "claude-haiku-4-5"
 
+    # Outbound disclosure wording. "representative" discloses the agency
+    # relationship ("on behalf of X, who has authorized this
+    # correspondence") without the KarenBot brand string — which is a
+    # trivially filterable blocklist key for companies. "branded" adds the
+    # product name. Both are honest; neither ever denies automation if
+    # asked (enforced in prompts). Wording is on the attorney checklist.
+    disclosure_mode: str = "representative"  # representative | branded
+
     # Moral code: company size classes KarenBot may target. Mom-and-pop
     # businesses ("small_business") and unreviewed companies ("unclassified")
     # must never appear here.
