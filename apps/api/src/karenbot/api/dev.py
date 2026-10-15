@@ -12,6 +12,7 @@ from typing import Any
 from fastapi import APIRouter
 from pydantic import BaseModel
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from karenbot.channels.mock_email import MockEmailAdapter
 from karenbot.db.session import get_session_factory
@@ -86,6 +87,17 @@ def build_router(
 
     @router.post("/seed", response_model=SeedOut)
     def seed() -> SeedOut:
+        # Multiple pages call seed on mount; concurrent first-seeds can race
+        # past the existence checks. The loser's IntegrityError just means
+        # the winner already seeded — report success either way.
+        try:
+            return _do_seed()
+        except IntegrityError:
+            return SeedOut(
+                user_email=DEMO_EMAIL, companies=[s["name"] for s in SEED_COMPANIES]
+            )
+
+    def _do_seed() -> SeedOut:
         factory = get_session_factory()
         with factory() as session:
             user = session.scalars(select(User).where(User.email == DEMO_EMAIL)).first()

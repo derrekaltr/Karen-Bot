@@ -6,6 +6,7 @@ in-process mock-email worker so the full case lifecycle can be exercised from
 the browser with no external services.
 """
 
+import logging
 import uuid
 from collections.abc import Iterator
 from datetime import datetime
@@ -14,6 +15,7 @@ from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -46,6 +48,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Return JSON 500s through the middleware stack so CORS headers are
+    present — otherwise browsers surface errors as an opaque
+    'Failed to fetch' instead of a readable message."""
+    logging.getLogger("karenbot.api").exception("unhandled error on %s", request.url.path)
+    return JSONResponse(status_code=500, content={"detail": "internal server error"})
 
 
 def get_db() -> Iterator[Session]:
