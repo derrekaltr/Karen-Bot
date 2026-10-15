@@ -20,12 +20,16 @@ import {
   listAudit,
   listCommunications,
   revokeCase,
+  scanCaseEvidence,
   type Approval,
   type AuditEvent,
   type Case,
   type Communication,
   type Persona,
+  type ScanEvidence,
 } from "@/lib/api";
+
+const EVIDENCE_COLLAPSE_COUNT = 3;
 
 const POLL_INTERVAL_MS = 3000;
 const BODY_TRUNCATE_LENGTH = 400;
@@ -47,6 +51,9 @@ export function CaseDetail({ caseId }: { caseId: string }) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [signedName, setSignedName] = useState("");
   const [loaText, setLoaText] = useState<string | null>(null);
+  const [evidenceScanning, setEvidenceScanning] = useState(false);
+  const [scanResult, setScanResult] = useState<ScanEvidence[] | null>(null);
+  const [showAllEvidence, setShowAllEvidence] = useState(false);
 
   const refetch = useCallback(async () => {
     try {
@@ -133,6 +140,19 @@ export function CaseDetail({ caseId }: { caseId: string }) {
         );
       }
     });
+  }
+
+  async function scanForEvidence() {
+    setEvidenceScanning(true);
+    try {
+      await runAction(async () => {
+        const result = await scanCaseEvidence(caseId);
+        setScanResult(result);
+        setShowAllEvidence(false);
+      });
+    } finally {
+      setEvidenceScanning(false);
+    }
   }
 
   async function copyBody(comm: Communication) {
@@ -462,6 +482,17 @@ export function CaseDetail({ caseId }: { caseId: string }) {
         )}
         {!isTerminal && (
           <Button
+            variant="secondary"
+            disabled={busy}
+            onClick={() => void scanForEvidence()}
+          >
+            {evidenceScanning
+              ? "Scanning your inbox…"
+              : "Scan inbox for evidence"}
+          </Button>
+        )}
+        {!isTerminal && (
+          <Button
             variant="danger"
             disabled={busy}
             onClick={() => {
@@ -478,6 +509,44 @@ export function CaseDetail({ caseId }: { caseId: string }) {
           </Button>
         )}
       </div>
+
+      {/* Inbox evidence scan result */}
+      {scanResult !== null && (
+        <Card>
+          {scanResult.length === 0 ? (
+            <p className="text-sm text-ink-600">
+              No new matching emails found.
+            </p>
+          ) : (
+            <>
+              <h2 className="text-sm font-semibold">Evidence attached:</h2>
+              <ul className="mt-2 flex flex-col gap-2">
+                {(showAllEvidence
+                  ? scanResult
+                  : scanResult.slice(0, EVIDENCE_COLLAPSE_COUNT)
+                ).map((evidence) => (
+                  <li
+                    key={evidence.id}
+                    className="rounded-lg bg-slate-50 px-3 py-2 text-sm leading-relaxed text-ink-900"
+                  >
+                    {evidence.summary}
+                  </li>
+                ))}
+              </ul>
+              {scanResult.length > EVIDENCE_COLLAPSE_COUNT &&
+                !showAllEvidence && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllEvidence(true)}
+                    className="mt-2 text-sm font-semibold text-accent-600 hover:text-accent-700"
+                  >
+                    Show all {scanResult.length}
+                  </button>
+                )}
+            </>
+          )}
+        </Card>
+      )}
 
       {/* Dev simulator */}
       <div className="rounded-xl border border-dashed border-slate-300 p-5">

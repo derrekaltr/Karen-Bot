@@ -166,6 +166,33 @@ export interface TickResult {
   persona: string;
 }
 
+export type ClaimKind =
+  | "unused_flight_credit"
+  | "cancelled_flight"
+  | "failed_delivery"
+  | "duplicate_charge";
+
+/** A claimable situation Karen found while scanning the user's inbox. */
+export interface ClaimCandidate {
+  kind: ClaimKind;
+  company_name: string;
+  company_industry: string;
+  suggested_category: string;
+  title: string;
+  snippet: string;
+  /** Pydantic serializes Decimal as a JSON string. */
+  amount: string | null;
+  occurred_at: string;
+  reference: string;
+}
+
+/** Evidence attached to a case by an inbox scan. */
+export interface ScanEvidence {
+  id: string;
+  evidence_type: string;
+  summary: string;
+}
+
 export const PERSONAS = [
   "lowball_then_accept",
   "immediate_refund",
@@ -317,6 +344,22 @@ export function confirmRecovery(
 
 export function revokeCase(caseId: string): Promise<{ status: CaseStatus }> {
   return request(`/cases/${caseId}/revoke`, { method: "POST" });
+}
+
+/**
+ * Sweep the connected mailbox for claimable situations. May throw
+ * ApiError(503) with a human-readable detail when no mailbox is connectable.
+ */
+export function scanInbox(): Promise<ClaimCandidate[]> {
+  return request("/scan/inbox", { method: "POST" });
+}
+
+/**
+ * Scan the mailbox for emails relevant to a case and attach them as
+ * evidence. Idempotent: a repeat scan returns an empty list.
+ */
+export function scanCaseEvidence(caseId: string): Promise<ScanEvidence[]> {
+  return request(`/scan/cases/${caseId}/evidence`, { method: "POST" });
 }
 
 export function devTick(input: {
