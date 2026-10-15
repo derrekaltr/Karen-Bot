@@ -26,9 +26,12 @@ GENERAL: list[Category] = [
 
 BY_INDUSTRY: dict[str, list[Category]] = {
     "airline": [
+        Category("missed_flight_recovery", "Missed my flight — recover value / credits"),
         Category("flight_cancellation_refund", "Cancelled flight refund"),
+        Category("flight_delay_compensation", "Long delay — compensation / expenses"),
         Category("flight_credit_reissue", "Unused flight credits / expired vouchers"),
         Category("baggage_delay_expenses", "Delayed or lost baggage expenses"),
+        Category("schedule_change_refund", "Schedule change wrecked my trip"),
         Category("involuntary_downgrade", "Involuntary downgrade compensation"),
         Category("missed_connection_expenses", "Missed connection expenses"),
         Category("goodwill_compensation", "Terrible experience — goodwill compensation"),
