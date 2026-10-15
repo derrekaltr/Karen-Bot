@@ -55,6 +55,6 @@ ignore_missing_imports = true
 check_untyped_defs = true
 
 [[tool.mypy.overrides]]
-# Narrative demo script: Optional-navigation noise is acceptable there.
-module = "karenbot.demo.*"
+# Narrative demo/eval scripts: Optional-navigation noise is acceptable there.
+module = ["karenbot.demo.*", "karenbot.evals.*"]
 ignore_errors = true

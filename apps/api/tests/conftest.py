@@ -11,6 +11,9 @@ def db(tmp_path, monkeypatch):
     KARENBOT_TEST_DATABASE_URL to run the same suite against Postgres."""
     url = os.environ.get("KARENBOT_TEST_DATABASE_URL") or f"sqlite:///{tmp_path}/test.db"
     monkeypatch.setenv("KARENBOT_DATABASE_URL", url)
+    # Determinism + zero cost: tests always run on the scripted client,
+    # even when the developer's .env selects the real provider.
+    monkeypatch.setenv("KARENBOT_LLM_PROVIDER", "scripted")
     monkeypatch.setenv("KARENBOT_MIN_HOURS_BETWEEN_OUTBOUND", "0")
     monkeypatch.setenv("KARENBOT_MAX_OUTBOUND_PER_CASE_PER_DAY", "10")
 
