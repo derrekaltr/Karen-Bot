@@ -21,6 +21,7 @@ import {
   listCommunications,
   revokeCase,
   scanCaseEvidence,
+  type EvidenceScanResult,
   type Approval,
   type AuditEvent,
   type Case,
@@ -52,7 +53,7 @@ export function CaseDetail({ caseId }: { caseId: string }) {
   const [signedName, setSignedName] = useState("");
   const [loaText, setLoaText] = useState<string | null>(null);
   const [evidenceScanning, setEvidenceScanning] = useState(false);
-  const [scanResult, setScanResult] = useState<ScanEvidence[] | null>(null);
+  const [scanResult, setScanResult] = useState<EvidenceScanResult | null>(null);
   const [showAllEvidence, setShowAllEvidence] = useState(false);
 
   const refetch = useCallback(async () => {
@@ -513,17 +514,23 @@ export function CaseDetail({ caseId }: { caseId: string }) {
       {/* Inbox evidence scan result */}
       {scanResult !== null && (
         <Card>
-          {scanResult.length === 0 ? (
+          {scanResult.attached.length === 0 ? (
             <p className="text-sm text-ink-600">
-              No new matching emails found.
+              {scanResult.total_matches > 0
+                ? `Nothing new — ${scanResult.total_matches} matching item${
+                    scanResult.total_matches === 1 ? "" : "s"
+                  } already attached from an earlier scan.`
+                : "No new matching emails found."}
+              {scanResult.source === "mock" &&
+                " (Demo inbox — connect your real email to scan actual mail.)"}
             </p>
           ) : (
             <>
               <h2 className="text-sm font-semibold">Evidence attached:</h2>
               <ul className="mt-2 flex flex-col gap-2">
                 {(showAllEvidence
-                  ? scanResult
-                  : scanResult.slice(0, EVIDENCE_COLLAPSE_COUNT)
+                  ? scanResult.attached
+                  : scanResult.attached.slice(0, EVIDENCE_COLLAPSE_COUNT)
                 ).map((evidence) => (
                   <li
                     key={evidence.id}
@@ -533,14 +540,14 @@ export function CaseDetail({ caseId }: { caseId: string }) {
                   </li>
                 ))}
               </ul>
-              {scanResult.length > EVIDENCE_COLLAPSE_COUNT &&
+              {scanResult.attached.length > EVIDENCE_COLLAPSE_COUNT &&
                 !showAllEvidence && (
                   <button
                     type="button"
                     onClick={() => setShowAllEvidence(true)}
                     className="mt-2 text-sm font-semibold text-accent-600 hover:text-accent-700"
                   >
-                    Show all {scanResult.length}
+                    Show all {scanResult.attached.length}
                   </button>
                 )}
             </>

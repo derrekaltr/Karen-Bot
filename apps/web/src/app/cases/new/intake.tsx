@@ -317,12 +317,25 @@ export function GuidedIntake() {
     setBusy(true);
     say("you", "Scan my email for proof.");
     try {
-      const found = await scanCaseEvidence(caseId);
-      if (found.length === 0) {
+      const result = await scanCaseEvidence(caseId);
+      const found = result.attached;
+      const demoNote =
+        result.source === "mock"
+          ? " (Heads up: I'm scanning a demo inbox until your real email is connected.)"
+          : "";
+      if (found.length === 0 && result.total_matches > 0) {
+        say(
+          "karen",
+          `Nothing new — I already attached ${result.total_matches} item` +
+            `${result.total_matches === 1 ? "" : "s"} from your inbox to this ` +
+            `case earlier.${demoNote}`,
+        );
+        setEvidenceCount((n) => (n > 0 ? n : result.total_matches));
+      } else if (found.length === 0) {
         say(
           "karen",
           "I didn't find anything matching in your inbox. You can add " +
-            "evidence manually, or we can proceed without it.",
+            `evidence manually, or we can proceed without it.${demoNote}`,
         );
       } else {
         for (const item of found) {
@@ -331,7 +344,7 @@ export function GuidedIntake() {
         say(
           "karen",
           `That's ${found.length} piece${found.length === 1 ? "" : "s"} of ` +
-            "evidence from your inbox. Anything else, or are we done here?",
+            `evidence from your inbox. Anything else, or are we done here?${demoNote}`,
         );
         setEvidenceCount((n) => n + found.length);
       }

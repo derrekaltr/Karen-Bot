@@ -193,6 +193,21 @@ export interface ScanEvidence {
   summary: string;
 }
 
+/** "mock" = simulated demo inbox; "live" = the user's real mailbox. */
+export type ScanSource = "mock" | "live";
+
+export interface InboxScanResult {
+  source: ScanSource;
+  candidates: ClaimCandidate[];
+}
+
+export interface EvidenceScanResult {
+  source: ScanSource;
+  attached: ScanEvidence[];
+  /** Matches including ones attached by earlier scans. */
+  total_matches: number;
+}
+
 export const PERSONAS = [
   "lowball_then_accept",
   "immediate_refund",
@@ -350,7 +365,7 @@ export function revokeCase(caseId: string): Promise<{ status: CaseStatus }> {
  * Sweep the connected mailbox for claimable situations. May throw
  * ApiError(503) with a human-readable detail when no mailbox is connectable.
  */
-export function scanInbox(): Promise<ClaimCandidate[]> {
+export function scanInbox(): Promise<InboxScanResult> {
   return request("/scan/inbox", { method: "POST" });
 }
 
@@ -358,7 +373,7 @@ export function scanInbox(): Promise<ClaimCandidate[]> {
  * Scan the mailbox for emails relevant to a case and attach them as
  * evidence. Idempotent: a repeat scan returns an empty list.
  */
-export function scanCaseEvidence(caseId: string): Promise<ScanEvidence[]> {
+export function scanCaseEvidence(caseId: string): Promise<EvidenceScanResult> {
   return request(`/scan/cases/${caseId}/evidence`, { method: "POST" });
 }
 

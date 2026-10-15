@@ -42,6 +42,7 @@ function KindBadge({ kind }: { kind: string }) {
 function InboxScanPanel() {
   const router = useRouter();
   const [scanning, setScanning] = useState(false);
+  const [scanSource, setScanSource] = useState<"mock" | "live" | null>(null);
   const [candidates, setCandidates] = useState<ClaimCandidate[] | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
@@ -54,7 +55,8 @@ function InboxScanPanel() {
     setStartError(null);
     try {
       const result = await scanInbox();
-      setCandidates(result);
+      setCandidates(result.candidates);
+      setScanSource(result.source);
       setDismissed(new Set());
     } catch (err) {
       setCandidates(null);
@@ -142,7 +144,14 @@ function InboxScanPanel() {
           </p>
         ) : (
           <div className="mt-6">
-            <h2 className="text-base font-semibold">Karen found money</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-semibold">Karen found money</h2>
+              {scanSource === "mock" && (
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                  Demo data — connect your email to scan your real inbox
+                </span>
+              )}
+            </div>
             <ul className="mt-3 flex flex-col gap-4">
               {visible.map((candidate) => {
                 const amount = formatAmount(candidate.amount, "USD");

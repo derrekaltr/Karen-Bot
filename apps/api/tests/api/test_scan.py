@@ -17,7 +17,9 @@ def client(db):
 
 
 def test_scan_finds_claim_candidates(client):
-    candidates = client.post("/scan/inbox", headers=USER).json()
+    payload = client.post("/scan/inbox", headers=USER).json()
+    assert payload["source"] == "mock"  # honestly labeled until live email
+    candidates = payload["candidates"]
     kinds = {c["kind"] for c in candidates}
     assert "unused_flight_credit" in kinds
     aa = next(c for c in candidates if c["kind"] == "unused_flight_credit")
@@ -27,7 +29,7 @@ def test_scan_finds_claim_candidates(client):
 
 
 def test_candidate_becomes_case_and_disappears_from_scan(client):
-    candidates = client.post("/scan/inbox", headers=USER).json()
+    candidates = client.post("/scan/inbox", headers=USER).json()["candidates"]
     aa = next(c for c in candidates if c["company_name"] == "American Airlines")
     r = client.post(
         "/cases",
@@ -41,7 +43,7 @@ def test_candidate_becomes_case_and_disappears_from_scan(client):
     )
     assert r.status_code == 200
     # Already-pursued candidates are not resurfaced.
-    again = client.post("/scan/inbox", headers=USER).json()
+    again = client.post("/scan/inbox", headers=USER).json()["candidates"]
     assert not any(
         c["company_name"] == "American Airlines"
         and c["suggested_category"] == "flight_credit_reissue"
@@ -62,7 +64,8 @@ def test_case_evidence_scan_attaches_and_is_idempotent(client):
     )
     case_id = r.json()["case"]["id"]
     first = client.post(f"/scan/cases/{case_id}/evidence", headers=USER).json()
-    assert first, "expected evidence hits for baggage keywords"
-    assert any("receipt" in e["summary"].lower() for e in first)
+    assert first["attached"], "expected evidence hits for baggage keywords"
+    assert any("receipt" in e["summary"].lower() for e in first["attached"])
     second = client.post(f"/scan/cases/{case_id}/evidence", headers=USER).json()
-    assert second == []  # idempotent on scan references
+    assert second["attached"] == []  # idempotent on scan references
+    assert second["total_matches"] >= 1  # so the UI can say "nothing NEW"
