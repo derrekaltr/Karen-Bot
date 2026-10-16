@@ -87,6 +87,84 @@ function optionsForIndustry(
 const SMALL_BUSINESS_NOTE =
   "Karen doesn't pressure small businesses — she'll draft the message and you send it yourself.";
 
+/** A tile on the "What kind of company?" step, grouping company industries. */
+interface CompanyTypeTile {
+  key: string;
+  emoji: string;
+  label: string;
+  /** `industry` values this tile covers; first entry is the primary one. */
+  industries: readonly string[];
+}
+
+const COMPANY_TYPES: readonly CompanyTypeTile[] = [
+  {
+    key: "travel",
+    emoji: "✈️",
+    label: "Travel & airlines",
+    industries: ["airline", "hotel"],
+  },
+  {
+    key: "food",
+    emoji: "🍔",
+    label: "Food & delivery",
+    industries: ["restaurant", "delivery_apps"],
+  },
+  { key: "rides", emoji: "🚗", label: "Rides", industries: ["rideshare"] },
+  { key: "shopping", emoji: "🛍️", label: "Shopping", industries: ["ecommerce"] },
+  {
+    key: "banking",
+    emoji: "💳",
+    label: "Banking & cards",
+    industries: ["financial"],
+  },
+  {
+    key: "telecom",
+    emoji: "📶",
+    label: "Phone & internet",
+    industries: ["telecom"],
+  },
+  {
+    key: "subscriptions",
+    emoji: "🔁",
+    label: "Subscriptions",
+    industries: ["subscription"],
+  },
+];
+
+/** Catch-all tile: companies no other tile matches, plus the free-text path. */
+const OTHER_TYPE: CompanyTypeTile = {
+  key: "other",
+  emoji: "🧾",
+  label: "Something else",
+  industries: [],
+};
+
+/** Industries claimed by a named tile — "Something else" gets the rest. */
+const MATCHED_INDUSTRIES: ReadonlySet<string> = new Set(
+  COMPANY_TYPES.flatMap((tile) => tile.industries),
+);
+
+/** Companies a tile covers. "Something else" takes every unmatched one. */
+function companiesForType(
+  tile: CompanyTypeTile,
+  companies: Company[],
+): Company[] {
+  if (tile.key === OTHER_TYPE.key) {
+    return companies.filter(
+      (company) => !MATCHED_INDUSTRIES.has(company.industry),
+    );
+  }
+  return companies.filter((company) =>
+    tile.industries.includes(company.industry),
+  );
+}
+
+/** Demo/internal companies get a subtle "test" pill so real brands stand out. */
+const TEST_COMPANY_NAMES: ReadonlySet<string> = new Set([
+  "Acme Air",
+  "ALTR Test Airways",
+]);
+
 const EVIDENCE_TYPES = [
   { value: "receipt", label: "Receipt" },
   { value: "screenshot", label: "Screenshot" },
@@ -122,6 +200,10 @@ export function GuidedIntake() {
 
   // Step 1 form state
   const [catalog, setCatalog] = useState<CategoryCatalog | null>(null);
+  /** null = still on the type tile grid; set = picking a company of that type. */
+  const [selectedType, setSelectedType] = useState<CompanyTypeTile | null>(
+    null,
+  );
   const [companyName, setCompanyName] = useState<string | null>(null);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [showOtherInput, setShowOtherInput] = useState(false);
@@ -199,6 +281,21 @@ export function GuidedIntake() {
           ? err.message
           : "Something went wrong talking to the API.",
     );
+  }
+
+  function pickType(tile: CompanyTypeTile) {
+    setError(null);
+    setSelectedType(tile);
+    setShowOtherInput(false);
+    // Pre-set the free-text form's industry to the tile's primary industry.
+    setOtherIndustry(tile.industries[0] ?? "other");
+    say("you", tile.label);
+  }
+
+  function backToTypes() {
+    setError(null);
+    setSelectedType(null);
+    setShowOtherInput(false);
   }
 
   function pickCompany(company: Company) {
@@ -483,6 +580,17 @@ export function GuidedIntake() {
       ? optionsForCompany(selectedCompany, catalog)
       : optionsForIndustry(otherIndustry, catalog);
 
+  // A named tile only shows when it has at least one company; "Something
+  // else" always shows (it also carries the free-text path).
+  const visibleTypes = [
+    ...COMPANY_TYPES.filter(
+      (tile) => companiesForType(tile, companies).length > 0,
+    ),
+    OTHER_TYPE,
+  ];
+  const typeCompanies =
+    selectedType !== null ? companiesForType(selectedType, companies) : [];
+
   return (
     <div>
       <Card className="p-0">
@@ -550,11 +658,42 @@ export function GuidedIntake() {
             </p>
           )}
 
-          {phase === "company" && (
+          {phase === "company" && selectedType === null && (
             <div>
+              <p className="mb-2 text-sm font-medium">What kind of company?</p>
+              <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                {visibleTypes.map((tile) => (
+                  <li key={tile.key}>
+                    <button
+                      type="button"
+                      onClick={() => pickType(tile)}
+                      className="flex min-h-11 w-full flex-col items-start gap-1 rounded-lg border border-slate-300 bg-white px-4 py-3 text-left transition-colors hover:border-accent-600 hover:bg-accent-50"
+                    >
+                      <span className="text-xl" aria-hidden="true">
+                        {tile.emoji}
+                      </span>
+                      <span className="text-sm font-semibold">
+                        {tile.label}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {phase === "company" && selectedType !== null && (
+            <div>
+              <button
+                type="button"
+                onClick={backToTypes}
+                className="mb-2 text-xs font-medium text-accent-600 hover:underline"
+              >
+                ← Back to types
+              </button>
               <p className="mb-2 text-sm font-medium">Pick the company</p>
               <ul className="flex flex-col gap-2">
-                {companies.map((company) => (
+                {typeCompanies.map((company) => (
                   <li key={company.id}>
                     <button
                       type="button"
@@ -563,6 +702,11 @@ export function GuidedIntake() {
                     >
                       <span className="flex items-center gap-2">
                         <span className="font-semibold">{company.name}</span>
+                        {TEST_COMPANY_NAMES.has(company.name) && (
+                          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-ink-400">
+                            test
+                          </span>
+                        )}
                         {!company.targetable && (
                           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-ink-600">
                             assist mode
@@ -575,11 +719,6 @@ export function GuidedIntake() {
                     </button>
                   </li>
                 ))}
-                {companies.length === 0 && (
-                  <li className="text-sm text-ink-400">
-                    No companies available yet.
-                  </li>
-                )}
                 <li>
                   {showOtherInput ? (
                     <form
