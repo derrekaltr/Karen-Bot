@@ -63,6 +63,27 @@ def claim_next(session: Session, worker_id: str, lease_seconds: int = 300) -> Ou
     return session.get(OutboxMessage, row_id)
 
 
+def claim_row(
+    session: Session, row_id: uuid.UUID, worker_id: str, lease_seconds: int = 300
+) -> OutboxMessage | None:
+    """Atomically claim one specific pending row by id (supervised sends,
+    targeted retries). Returns None if it was not pending."""
+    claimed: CursorResult[Any] = session.execute(  # type: ignore[assignment]
+        update(OutboxMessage)
+        .where(OutboxMessage.id == row_id, OutboxMessage.status == OutboxStatus.PENDING.value)
+        .values(
+            status=OutboxStatus.SENDING.value,
+            locked_by=worker_id,
+            locked_until=datetime.now(UTC) + timedelta(seconds=lease_seconds),
+            attempts=OutboxMessage.attempts + 1,
+        )
+    )
+    session.commit()
+    if claimed.rowcount != 1:
+        return None
+    return session.get(OutboxMessage, row_id)
+
+
 def deliver(session: Session, row: OutboxMessage, adapter: ChannelAdapter) -> None:
     """Send a claimed row and finalize it. Caller handles exceptions."""
     thread_id = session.scalar(

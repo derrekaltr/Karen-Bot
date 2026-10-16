@@ -53,6 +53,10 @@ class CaseContext:
     outbound_count_24h: int
     outbound_count_total: int
     follow_ups_sent: int
+    # When the company last wrote to us (None if never). Replying to their
+    # latest message is exempt from the minimum-wait rule — answering
+    # promptly is not harassment; unprompted re-sends are what we pace.
+    last_inbound_at: "datetime | None"
     # Cross-case counters: this user across all cases, and platform-wide.
     user_outbound_24h: int
     global_outbound_1h: int
@@ -113,6 +117,13 @@ def build_case_context(session: Session, case: Case) -> CaseContext:
         Communication.counterparty == "company",
     )
     outbound = session.scalars(outbound_q).all()
+    inbound_times = session.scalars(
+        select(Communication.received_at).where(
+            Communication.case_id == case.id,
+            Communication.direction == Direction.INBOUND.value,
+            Communication.counterparty == "company",
+        )
+    ).all()
     cutoff = now - timedelta(hours=24)
 
     def _aware(dt: datetime | None) -> datetime | None:
@@ -123,6 +134,8 @@ def build_case_context(session: Session, case: Case) -> CaseContext:
     sent_times = [t for c in outbound if (t := _aware(c.sent_at)) is not None]
     outbound_count_24h = sum(1 for t in sent_times if t >= cutoff)
     last_outbound_at = max(sent_times) if sent_times else None
+    inbound_aware = [t for t in (_aware(x) for x in inbound_times) if t is not None]
+    last_inbound_at = max(inbound_aware) if inbound_aware else None
 
     follow_ups_sent = sum(1 for c in outbound if (c.classification or {}).get("is_follow_up"))
 
@@ -172,6 +185,7 @@ def build_case_context(session: Session, case: Case) -> CaseContext:
         outbound_count_24h=outbound_count_24h,
         outbound_count_total=len(outbound),
         follow_ups_sent=int(follow_ups_sent),
+        last_inbound_at=last_inbound_at,
         user_outbound_24h=user_outbound_24h,
         global_outbound_1h=global_outbound_1h,
         last_outbound_at=last_outbound_at,

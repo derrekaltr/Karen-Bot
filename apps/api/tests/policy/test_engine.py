@@ -40,6 +40,7 @@ def make_ctx(**overrides) -> CaseContext:
         outbound_count_24h=0,
         outbound_count_total=0,
         follow_ups_sent=0,
+        last_inbound_at=None,
         user_outbound_24h=0,
         global_outbound_1h=0,
         last_outbound_at=None,
@@ -132,6 +133,25 @@ def test_total_limit_denies():
 
 def test_minimum_wait_between_messages_denies():
     ctx = make_ctx(last_outbound_at=NOW - timedelta(hours=2))
+    decision = evaluate(make_send(), ctx, now=NOW)
+    assert decision.decision == PolicyDecisionType.DENY
+    assert "minimum_wait_between_messages_not_met" in decision.reasons
+
+
+def test_replying_to_company_exempt_from_pacing():
+    """Answering the company's latest message promptly is not harassment."""
+    ctx = make_ctx(
+        last_outbound_at=NOW - timedelta(hours=1),
+        last_inbound_at=NOW - timedelta(minutes=10),  # they wrote after us
+    )
+    assert evaluate(make_send(), ctx, now=NOW).decision == PolicyDecisionType.ALLOW
+
+
+def test_unprompted_resend_still_paced():
+    ctx = make_ctx(
+        last_outbound_at=NOW - timedelta(hours=1),
+        last_inbound_at=NOW - timedelta(hours=5),  # we wrote last
+    )
     decision = evaluate(make_send(), ctx, now=NOW)
     assert decision.decision == PolicyDecisionType.DENY
     assert "minimum_wait_between_messages_not_met" in decision.reasons

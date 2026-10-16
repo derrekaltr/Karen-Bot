@@ -47,6 +47,9 @@ CONTACTABLE_STATES: frozenset[CaseStatus] = frozenset(
         CaseStatus.NEGOTIATING,
         CaseStatus.ESCALATED,
         CaseStatus.OFFER_RECEIVED,
+        # Correspondence continues during verification: acceptance
+        # confirmations, "where is the payment" nudges.
+        CaseStatus.VERIFYING_RECOVERY,
     }
 )
 

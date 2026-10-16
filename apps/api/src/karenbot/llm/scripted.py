@@ -94,6 +94,20 @@ class ScriptedClient:
             f"I am writing on behalf of {customer}, who has authorized this correspondence."
         )
         signoff = ctx.get("signoff") or f"Authorized representative for {customer}"
+        if ctx.get("acceptance_amount"):
+            accepted = f"{currency} {ctx['acceptance_amount']}"
+            subject = f"Re: {claim.replace('_', ' ').title()} — offer accepted"
+            body = (
+                f"Hello {company} support,\n\n"
+                f"Thank you for your offer. On behalf of {customer}, we accept "
+                f"the offer of {accepted}. Receipts and supporting documentation "
+                f"are available and can be provided on request.\n\n"
+                f"Please confirm processing and the expected timeline for the "
+                f"payment to reach the original form of payment.\n\n"
+                f"{disclosure}\n\n"
+                f"Kind regards,\n{signoff}"
+            )
+            return EmailDraft(subject=subject, body=body.strip())
         if ctx.get("is_follow_up"):
             subject = f"Re: {claim.replace('_', ' ').title()} — follow-up"
             body = (

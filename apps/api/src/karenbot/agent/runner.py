@@ -461,6 +461,33 @@ class AgentRuntime:
             prompt_version=version,
         )
 
+    def send_acceptance_confirmation(
+        self, session: Session, case: Case, amount: Decimal | None
+    ) -> PolicyDecision:
+        """After the customer approves an offer, tell the company: accepted,
+        receipts available, please process. Replies to their latest message,
+        so the pacing floor's reply exemption applies."""
+        channel = self._primary_channel(session, case)
+        context = {
+            **self._case_context_doc(session, case),
+            "is_follow_up": True,
+            "acceptance_amount": str(amount) if amount is not None else None,
+            "history_summary": "customer approved the company's offer; confirm acceptance",
+        }
+        draft, version = self._generate("draft_follow_up", context, EmailDraft)
+        action = SendMessage(
+            case_id=case.id,
+            purpose="accept_offer_confirmation",
+            support_channel_id=channel.id,
+            subject=draft.subject,
+            body=draft.body,
+            claim_type=case.category,
+            requested_amount=None,
+            is_follow_up=False,  # acceptance does not consume follow-up quota
+        )
+        _, decision = self._propose(session, action, prompt_version=version)
+        return decision
+
     def _mark_company_confirmed(self, session: Session, case: Case) -> None:
         outcome = session.scalars(
             select(RecoveryOutcome)

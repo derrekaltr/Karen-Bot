@@ -503,7 +503,22 @@ def approve(
     if row.execution_status != ExecutionStatus.AWAITING_APPROVAL.value:
         raise HTTPException(409, "action is not awaiting approval")
     services.approve_action(db, row)
-    return {"status": case.status}
+    acceptance_queued = False
+    if row.action_type == "accept_offer":
+        # Close the loop with the company: accepted, receipts available.
+        from karenbot.domain.models import RecoveryOutcome
+
+        outcome = db.scalars(
+            select(RecoveryOutcome)
+            .where(RecoveryOutcome.case_id == case.id)
+            .order_by(RecoveryOutcome.created_at.desc())
+        ).first()
+        if case.contact_mode == "agent":
+            decision = _runtime.send_acceptance_confirmation(
+                db, case, outcome.amount if outcome else None
+            )
+            acceptance_queued = decision.allowed
+    return {"status": case.status, "acceptance_queued": acceptance_queued}
 
 
 @app.post("/cases/{case_id}/confirm-recovery")

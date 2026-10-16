@@ -124,6 +124,17 @@ def test_full_lifecycle_over_http(client):
     assert approvals and approvals[0]["action_type"] == "accept_offer"
     r = http.post(f"/approvals/{approvals[0]['id']}/approve", headers=HEADERS)
     assert r.json()["status"] == "VERIFYING_RECOVERY"
+    # Approval closes the loop with the company: an acceptance email queues
+    # (pacing's reply exemption applies) and delivers on the next tick.
+    assert r.json()["acceptance_queued"] is True
+    http.post("/dev/tick", json={"ticks": 1})
+    comms = http.get(f"/cases/{case_id}/communications", headers=HEADERS).json()
+    acceptance = [
+        c for c in comms
+        if c["direction"] == "outbound" and "accept" in (c["subject"] or "").lower()
+    ]
+    assert acceptance, "expected an acceptance-confirmation email"
+    assert "KarenBot" not in acceptance[0]["body"]  # representative voice
 
     # Confirm receipt -> resolved.
     r = http.post(f"/cases/{case_id}/confirm-recovery", headers=HEADERS)

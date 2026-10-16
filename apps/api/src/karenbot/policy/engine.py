@@ -141,8 +141,14 @@ def _check_send_message(
     if action.is_follow_up and ctx.follow_ups_sent >= ctx.max_follow_ups:
         deny.append("max_follow_ups_reached")
     if ctx.last_outbound_at is not None:
+        # Replying to the company's most recent message is exempt from the
+        # pacing floor (answering promptly isn't harassment); unprompted
+        # re-sends still wait. Daily/total caps apply regardless.
+        replying = (
+            ctx.last_inbound_at is not None and ctx.last_inbound_at > ctx.last_outbound_at
+        )
         min_gap = timedelta(hours=ctx.min_hours_between_outbound)
-        if now - ctx.last_outbound_at < min_gap:
+        if not replying and now - ctx.last_outbound_at < min_gap:
             deny.append("minimum_wait_between_messages_not_met")
 
     # Duplicate detection: identical content already sent or queued.
