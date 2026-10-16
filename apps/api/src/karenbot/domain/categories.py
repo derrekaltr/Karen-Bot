@@ -132,6 +132,22 @@ BY_INDUSTRY: dict[str, list[Category]] = {
         Category("missed_appointment_credit", "Missed technician appointment — credit"),
         Category("promo_trade_in_credit_missing", "Missing promo or trade-in credit"),
     ],
+    # B2B SaaS/cloud: SLA breaches are contractual, objectively measurable,
+    # and chronically under-claimed (docs/research/compensation-likelihood.md).
+    "saas": [
+        Category("sla_service_credit", "SLA breach — claim service credits"),
+        Category("outage_credit", "Outage or degraded service — credit"),
+        Category("incorrect_charge", "Billing error or double charge"),
+        Category("refund_unwanted_renewal", "Refund a renewal I didn't want"),
+        Category("prorated_refund", "Refund unused time on an annual plan"),
+    ],
+    "car_rental": [
+        Category("incorrect_charge", "Incorrect or surprise charge"),
+        Category("deposit_hold_release", "Release my deposit or hold"),
+        Category("reservation_failure", "Reservation not honored / no vehicle"),
+        Category("prepaid_booking_refund", "Refund a prepaid booking issue"),
+        Category("damage_claim_dispute", "Dispute a damage claim or fee"),
+    ],
     "subscription": [
         Category("refund_unwanted_renewal", "Refund a renewal I didn't want"),
         Category("subscription_cancellation", "Cancel a subscription (even a hard-to-cancel one)"),
