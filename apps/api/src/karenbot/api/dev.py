@@ -273,6 +273,41 @@ class TickOut(BaseModel):
     persona: str
 
 
+def _seed_tier1_policies(session) -> None:
+    """Load Tier 1 compensation-policy research (data_compensation_policies).
+    PRIMARY-confidence records seed verified; others unverified pending
+    human review (eligibility ignores unverified policies)."""
+    from karenbot.data_compensation_policies import TIER1_COMPANIES
+
+    for name, spec in TIER1_COMPANIES.items():
+        company = session.scalars(select(Company).where(Company.name == name)).first()
+        if company is None:
+            company = Company(
+                name=name, industry=spec["industry"], size_class="enterprise"
+            )
+            session.add(company)
+            session.flush()
+        existing = {
+            p.policy_type
+            for p in session.scalars(
+                select(CompanyPolicy).where(CompanyPolicy.company_id == company.id)
+            )
+        }
+        for policy in spec["policies"]:
+            if policy["policy_type"] in existing:
+                continue
+            session.add(
+                CompanyPolicy(
+                    company_id=company.id,
+                    policy_type=policy["policy_type"],
+                    source_url=policy["source_url"],
+                    verified_at=datetime.now(UTC) if policy["verified"] else None,
+                    content={"summary": policy["summary"]},
+                    eligibility_rules=policy["rules"],
+                )
+            )
+
+
 def _seed_research_channels(session, company, existing_addresses) -> None:
     """Load researched real-world channels as UNVERIFIED rows (policy engine
     refuses to send until a human verifies each in the admin console)."""
@@ -391,6 +426,7 @@ def build_router(
                                 eligibility_rules=extra["rules"],
                             )
                         )
+            _seed_tier1_policies(session)
             session.commit()
         return SeedOut(user_email=DEMO_EMAIL, companies=names)
 
