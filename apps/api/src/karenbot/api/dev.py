@@ -214,6 +214,44 @@ SEED_COMPANIES: "list[dict[str, Any]]" = [
     },
 ]
 
+# Generosity intelligence per company (INTERNAL TARGETING ONLY — informs
+# what Karen asks for and expects; never asserted in negotiation). USD
+# equivalents; sources in docs/research/company-generosity.md.
+COMPANY_INTEL: dict[str, dict] = {
+    "American Airlines": {"goodwill_low": 50, "goodwill_high": 300,
+        "goodwill_unit": "miles_5k_20k", "best_channel": "customer relations email form",
+        "notes": "Miles goodwill well documented; exec emails reported bouncing since 1/2026.",
+        "evidence": "JR/FC"},
+    "Delta Air Lines": {"goodwill_low": 25, "goodwill_high": 150,
+        "goodwill_unit": "miles_2.5k_10k", "best_channel": "live chat, then feedback form",
+        "notes": "Proactive 10k miles after cancellations documented; chat beats phone.",
+        "evidence": "JR"},
+    "Southwest Airlines": {"goodwill_low": 75, "goodwill_high": 300,
+        "goodwill_unit": "voucher", "best_channel": "delay form (never automatic)",
+        "notes": "$75+ voucher is a DOT-settlement entitlement through Apr 2027 — ask.",
+        "evidence": "PG"},
+    "JetBlue": {"goodwill_low": 60, "goodwill_high": 60,
+        "goodwill_unit": "points_5000", "best_channel": "automatic (attach TrueBlue first)",
+        "notes": "Flat 5,000 TrueBlue points for qualifying controllable disruptions.",
+        "evidence": "PG"},
+    "American Express": {"goodwill_low": 50, "goodwill_high": 700,
+        "goodwill_unit": "fee_waiver", "best_channel": "chat/phone — just ask",
+        "notes": "Fee-waiver asks succeed ~90% (self-reported); retention offers to 50k pts.",
+        "evidence": "JR"},
+    "Uber": {"goodwill_low": 5, "goodwill_high": 40,
+        "goodwill_unit": "credit", "best_channel": "in-app within 30 days",
+        "notes": "Credits over refunds; 'sole discretion' policy.", "evidence": "PG/JR"},
+    "Amazon": {"goodwill_low": 10, "goodwill_high": 100,
+        "goodwill_unit": "refund", "best_channel": "account chat",
+        "notes": "Returnless-refund algorithmic; report early, avoid pattern abuse.",
+        "evidence": "INF"},
+    "Chipotle": {"goodwill_low": 5, "goodwill_high": 30, "goodwill_unit": "refund_or_bogo",
+        "best_channel": "contact form / chat", "notes": "App recovery offers typical.",
+        "evidence": "FC"},
+    "McDonald's": {"goodwill_low": 5, "goodwill_high": 25, "goodwill_unit": "refund",
+        "best_channel": "feedback form", "notes": "Franchisee-dependent.", "evidence": "FC"},
+}
+
 # NOTE: all seed channels are .example placeholders for the mock adapter.
 # Real company intelligence (verified addresses, sourced policies) is a
 # human-verified data task before any real outreach — never invented.
@@ -315,6 +353,8 @@ def build_router(
                         select(CompanyPolicy).where(CompanyPolicy.company_id == company.id)
                     )
                 }
+                if spec["name"] in COMPANY_INTEL and not company.intel:
+                    company.intel = COMPANY_INTEL[spec["name"]]
                 _seed_research_channels(session, company, existing_channels)
                 if spec.get("channel") and spec["channel"] in existing_channels:
                     continue

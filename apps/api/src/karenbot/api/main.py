@@ -119,6 +119,8 @@ class CompanyOut(BaseModel):
     # Claim types the agent can pursue against this company (from verified
     # policies). Empty for assist-mode-only companies.
     claim_types: list[str]
+    # Internal targeting intelligence (goodwill range, best channel).
+    intel: dict[str, Any] = {}
 
 
 from karenbot.domain import categories as category_catalog  # noqa: E402
@@ -144,6 +146,7 @@ def list_companies(db: Session = Depends(get_db)) -> list[CompanyOut]:
             targetable=services.company_is_targetable(c),
             refuses_third_party=c.refuses_third_party,
             claim_types=sorted(set(policy_types.get(c.id, []))),
+            intel=c.intel or {},
         )
         for c in db.scalars(select(Company).order_by(Company.name))
     ]

@@ -27,6 +27,9 @@ class CandidateOut(BaseModel):
     title: str
     snippet: str
     amount: Decimal | None
+    # When no amount is visible, a rough worth estimate from company intel
+    # (goodwill range midpoint). Internal guidance, shown as "likely worth".
+    estimated_value: Decimal | None = None
     occurred_at: datetime
     reference: str
 
@@ -112,7 +115,13 @@ def build_router() -> APIRouter:
             ).first()
             if company and (candidate.suggested_category, str(company.id)) in existing:
                 continue
-            out.append(CandidateOut(**candidate.__dict__))
+            estimated = None
+            if candidate.amount is None and company and company.intel:
+                low = company.intel.get("goodwill_low")
+                high = company.intel.get("goodwill_high")
+                if low is not None and high is not None:
+                    estimated = (Decimal(str(low)) + Decimal(str(high))) / 2
+            out.append(CandidateOut(**candidate.__dict__, estimated_value=estimated))
         return InboxScanOut(source=source, candidates=out)
 
     @router.post("/cases/{case_id}/evidence", response_model=EvidenceScanOut)

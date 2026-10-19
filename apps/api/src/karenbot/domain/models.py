@@ -88,6 +88,11 @@ class Company(TimestampMixin, Base):
     # customers directly. Agent-sent outreach stops; KarenBot switches to
     # drafting messages the customer sends personally. Never evaded.
     refuses_third_party: Mapped[bool] = mapped_column(default=False)
+    # Generosity intelligence (docs/research/company-generosity.md):
+    # {goodwill_low, goodwill_high (USD-equivalent), goodwill_unit,
+    #  best_channel, notes, evidence}. INTERNAL TARGETING ONLY — never
+    # asserted to companies in negotiation.
+    intel: Mapped[dict[str, Any]] = mapped_column(JSONVariant, default=dict)
 
     support_channels: Mapped[list["SupportChannel"]] = relationship(back_populates="company")
     policies: Mapped[list["CompanyPolicy"]] = relationship(back_populates="company")
