@@ -257,20 +257,20 @@ export function CaseDetail({ caseId }: { caseId: string }) {
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-xl font-bold tracking-tight">
+            <h1 className="font-display text-2xl tracking-tight">
               {companyLabel}
             </h1>
             <p className="mt-1 text-sm text-ink-600">
               {humanize(caseRecord.category)}
-              {amount !== null ? ` · ${amount}` : ""}
+              {amount !== null ? ` — ${amount}` : ""}
             </p>
             {caseRecord.eligibility_basis !== null && (
-              <p className="mt-2 inline-block rounded-md bg-accent-50 px-2.5 py-1 text-xs font-medium text-accent-700">
+              <p className="mt-2 inline-block rounded-lg border-[1.5px] border-black bg-accent-50 px-2.5 py-1 text-xs font-bold text-accent-700">
                 Eligibility basis: {caseRecord.eligibility_basis}
               </p>
             )}
             {sandbox && (
-              <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+              <p className="mt-2 rounded-xl border-[1.5px] border-black bg-bob-100 px-3 py-2 text-xs leading-relaxed">
                 Sandbox mode: no real emails are sent. Outbound messages go
                 to a simulated company — use &quot;Simulate company
                 response&quot; to play out the negotiation. Statuses describe
@@ -281,12 +281,12 @@ export function CaseDetail({ caseId }: { caseId: string }) {
           <div className="flex items-center gap-2">
             <StatusBadge status={caseRecord.status} />
             {caseRecord.contact_mode === "assist" && (
-              <span className="rounded-full border border-slate-300 bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-ink-600">
+              <span className="rounded-full border-[1.5px] border-black bg-face-100 px-2.5 py-0.5 text-xs font-bold text-ink-600">
                 Assist mode
               </span>
             )}
             {sandbox && (
-              <span className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+              <span className="rounded-full border-[1.5px] border-black bg-bob-100 px-2.5 py-0.5 text-xs font-bold">
                 Sandbox
               </span>
             )}
@@ -310,8 +310,8 @@ export function CaseDetail({ caseId }: { caseId: string }) {
 
       {/* Authorization */}
       {caseRecord.status === "AWAITING_AUTHORIZATION" && (
-        <Card className="border-accent-500/50 bg-accent-50/60">
-          <h2 className="text-base font-semibold">
+        <Card className="bg-accent-50">
+          <h2 className="font-display text-lg">
             Karen needs your authorization
           </h2>
           <p className="mt-1 text-sm leading-relaxed text-ink-600">
@@ -336,7 +336,7 @@ export function CaseDetail({ caseId }: { caseId: string }) {
                 placeholder="e.g. Dana Example"
                 value={signedName}
                 onChange={(event) => setSignedName(event.target.value)}
-                className="min-h-11 rounded-lg border border-slate-300 bg-white px-4 text-sm focus:border-accent-600"
+                className="min-h-11 rounded-xl border-2 border-black bg-white px-4 text-sm"
               />
             </div>
             <Button type="submit" disabled={busy}>
@@ -347,11 +347,11 @@ export function CaseDetail({ caseId }: { caseId: string }) {
       )}
 
       {loaText !== null && (
-        <details className="rounded-xl border border-slate-200 bg-slate-50">
-          <summary className="cursor-pointer px-4 py-3 text-sm font-semibold">
+        <details className="rounded-xl border-2 border-black bg-face-100">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-bold">
             Your signed Letter of Authorization
           </summary>
-          <pre className="max-h-64 overflow-y-auto border-t border-slate-200 px-4 py-3 font-mono text-xs leading-relaxed whitespace-pre-wrap">
+          <pre className="max-h-64 overflow-y-auto border-t-2 border-dashed border-black px-4 py-3 font-mono text-xs leading-relaxed whitespace-pre-wrap">
             {loaText}
           </pre>
         </details>
@@ -359,8 +359,8 @@ export function CaseDetail({ caseId }: { caseId: string }) {
 
       {/* Ready to contact */}
       {caseRecord.status === "READY_TO_CONTACT" && (
-        <Card className="border-accent-500/50 bg-accent-50/60">
-          <h2 className="text-base font-semibold">Karen is ready</h2>
+        <Card className="bg-accent-50">
+          <h2 className="font-display text-lg">Karen is ready</h2>
           <p className="mt-1 text-sm leading-relaxed text-ink-600">
             Authorization signed. Say the word and Karen makes first contact
             with {companyLabel}.
@@ -379,15 +379,13 @@ export function CaseDetail({ caseId }: { caseId: string }) {
 
       {/* Approvals */}
       {approvals.length > 0 && (
-        <Card className="border-amber-300 bg-amber-50">
-          <h2 className="text-base font-semibold text-amber-900">
-            Karen needs your approval
-          </h2>
+        <Card className="bg-bob-100">
+          <h2 className="font-display text-lg">Karen needs your approval</h2>
           <ul className="mt-3 flex flex-col gap-4">
             {approvals.map((approval) => (
               <li
                 key={approval.id}
-                className="rounded-lg border border-amber-200 bg-white p-4"
+                className="rounded-xl border-2 border-black bg-white p-4"
               >
                 <p className="text-sm font-semibold">
                   {humanize(approval.action_type)}
@@ -430,10 +428,10 @@ export function CaseDetail({ caseId }: { caseId: string }) {
         </Card>
       )}
 
-      {/* Timeline */}
+      {/* Timeline — styled like the receipt on the landing page */}
       <Card className="p-0">
-        <h2 className="border-b border-slate-200 px-6 py-4 text-base font-semibold">
-          Timeline
+        <h2 className="border-b-2 border-dashed border-black px-6 py-4 font-display text-lg">
+          The paper trail
         </h2>
         {communications.length === 0 ? (
           <p className="px-6 py-8 text-sm text-ink-400">
@@ -460,7 +458,7 @@ export function CaseDetail({ caseId }: { caseId: string }) {
               if (isDraftForCustomer) {
                 return (
                   <li key={comm.id}>
-                    <div className="rounded-xl border-2 border-accent-500/50 bg-accent-50 p-4">
+                    <div className="rounded-xl border-2 border-black bg-bob-100 p-4">
                       <div className="flex items-center justify-between gap-3">
                         <p className="text-sm font-semibold text-accent-700">
                           Draft for you to send
@@ -468,7 +466,7 @@ export function CaseDetail({ caseId }: { caseId: string }) {
                         <button
                           type="button"
                           onClick={() => void copyBody(comm)}
-                          className="min-h-11 rounded-lg border border-accent-600 px-4 text-sm font-semibold text-accent-700 hover:bg-accent-100"
+                          className="min-h-11 rounded-xl border-2 border-black bg-white px-4 text-sm font-bold text-accent-700 hover:bg-accent-50"
                         >
                           {copiedId === comm.id ? "Copied!" : "Copy"}
                         </button>
@@ -507,20 +505,19 @@ export function CaseDetail({ caseId }: { caseId: string }) {
                     isOutboundToCompany ? "items-end" : "items-start"
                   }`}
                 >
-                  <span className="mb-1 text-xs font-medium text-ink-400">
+                  <span className="mb-1 text-xs font-bold text-ink-400">
                     {isOutboundToCompany
-                      ? `Karen → ${companyLabel}`
+                      ? `Karen to ${companyLabel}`
                       : comm.direction === "inbound"
                         ? companyLabel
-                        : `Karen → you`}
-                    {" · "}
-                    {new Date(timestamp).toLocaleString()}
+                        : `Karen to you`}{" "}
+                    — {new Date(timestamp).toLocaleString()}
                   </span>
                   <div
                     className={`max-w-[85%] rounded-xl px-4 py-3 text-sm leading-relaxed ${
                       isOutboundToCompany
-                        ? "bg-accent-600 text-white"
-                        : "bg-slate-100 text-ink-900"
+                        ? "border-2 border-black bg-white text-ink-900"
+                        : "bg-face-100 text-ink-900"
                     }`}
                   >
                     {comm.subject !== null && comm.subject !== "" && (
@@ -531,11 +528,7 @@ export function CaseDetail({ caseId }: { caseId: string }) {
                       <button
                         type="button"
                         onClick={() => toggleExpanded(comm.id)}
-                        className={`mt-2 text-sm font-semibold underline ${
-                          isOutboundToCompany
-                            ? "text-white/90"
-                            : "text-accent-600"
-                        }`}
+                        className="mt-2 text-sm font-bold text-accent-600 underline"
                       >
                         {expanded ? "Show less" : "Show more"}
                       </button>
@@ -590,8 +583,8 @@ export function CaseDetail({ caseId }: { caseId: string }) {
 
       {/* Inbox evidence scan result */}
       {scanResult !== null && scanResult.groups.length > 0 && (
-        <Card className="border-accent-500/50 bg-accent-50/60">
-          <h2 className="text-base font-semibold">
+        <Card className="bg-accent-50">
+          <h2 className="font-display text-lg">
             These look like different trips/orders — which one is this case
             about?
           </h2>
@@ -602,7 +595,7 @@ export function CaseDetail({ caseId }: { caseId: string }) {
                   type="button"
                   disabled={busy}
                   onClick={() => void pickEvidenceGroup(group)}
-                  className="flex min-h-11 w-full flex-col gap-1 rounded-lg border border-slate-300 bg-white px-4 py-3 text-left transition-colors hover:border-accent-600 hover:bg-accent-50 disabled:opacity-60"
+                  className="flex min-h-11 w-full flex-col gap-1 rounded-xl border-2 border-black bg-white px-4 py-3 text-left transition-colors hover:bg-face-100 disabled:opacity-60"
                 >
                   <span className="text-sm font-semibold">{group.label}</span>
                   {group.hits.slice(0, 2).map((hit) => (
@@ -644,7 +637,7 @@ export function CaseDetail({ caseId }: { caseId: string }) {
                 ).map((evidence) => (
                   <li
                     key={evidence.id}
-                    className="rounded-lg bg-slate-50 px-3 py-2 text-sm leading-relaxed text-ink-900"
+                    className="rounded-lg bg-face-100 px-3 py-2 text-sm leading-relaxed text-ink-900"
                   >
                     {evidence.summary}
                   </li>
@@ -666,11 +659,11 @@ export function CaseDetail({ caseId }: { caseId: string }) {
       )}
 
       {/* Evidence on file */}
-      <details className="rounded-xl border border-slate-200">
-        <summary className="cursor-pointer px-5 py-4 text-sm font-semibold">
+      <details className="rounded-xl border-2 border-black">
+        <summary className="cursor-pointer px-5 py-4 text-sm font-bold">
           Evidence on file ({evidenceOnFile.length})
         </summary>
-        <ul className="border-t border-slate-200 px-5 py-4">
+        <ul className="border-t-2 border-dashed border-black px-5 py-4">
           {evidenceOnFile.map((item) => {
             const expanded = expandedEvidence.has(item.id);
             const needsTruncation =
@@ -685,7 +678,7 @@ export function CaseDetail({ caseId }: { caseId: string }) {
                 className="flex items-start gap-3 border-b border-slate-100 py-2 text-sm last:border-b-0"
               >
                 <div className="min-w-0 flex-1">
-                  <span className="mr-2 rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-ink-600">
+                  <span className="mr-2 rounded bg-face-100 px-1.5 py-0.5 text-xs font-bold text-ink-600">
                     {humanize(item.evidence_type)}
                   </span>
                   <span className="leading-relaxed">{summaryText}</span>
@@ -720,10 +713,8 @@ export function CaseDetail({ caseId }: { caseId: string }) {
       </details>
 
       {/* Dev simulator */}
-      <div className="rounded-xl border border-dashed border-slate-300 p-5">
-        <p className="text-xs font-bold tracking-wide text-ink-400 uppercase">
-          Simulator — dev only
-        </p>
+      <div className="rounded-xl border-2 border-dashed border-ink-400 p-5">
+        <p className="text-xs font-bold text-ink-400">Simulator (dev only)</p>
         <div className="mt-3 flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1.5">
             <label htmlFor="persona" className="text-sm font-medium">
@@ -735,7 +726,7 @@ export function CaseDetail({ caseId }: { caseId: string }) {
               onChange={(event) =>
                 setPersona(event.target.value as Persona)
               }
-              className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm"
+              className="min-h-11 rounded-xl border-2 border-black bg-white px-3 text-sm"
             >
               {PERSONAS.map((p) => (
                 <option key={p} value={p}>
@@ -757,11 +748,11 @@ export function CaseDetail({ caseId }: { caseId: string }) {
       </div>
 
       {/* Audit trail */}
-      <details className="rounded-xl border border-slate-200">
-        <summary className="cursor-pointer px-5 py-4 text-sm font-semibold">
+      <details className="rounded-xl border-2 border-black">
+        <summary className="cursor-pointer px-5 py-4 text-sm font-bold">
           Audit trail ({audit.length})
         </summary>
-        <ul className="border-t border-slate-200 px-5 py-4">
+        <ul className="border-t-2 border-dashed border-black px-5 py-4">
           {audit.map((event, index) => (
             <li
               key={index}
@@ -770,7 +761,7 @@ export function CaseDetail({ caseId }: { caseId: string }) {
               <span className="font-mono text-xs text-ink-400">
                 {new Date(event.timestamp).toLocaleString()}
               </span>
-              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-ink-600">
+              <span className="rounded bg-face-100 px-1.5 py-0.5 text-xs font-bold text-ink-600">
                 {event.actor_type}
               </span>
               <span className="font-medium">{event.event_type}</span>

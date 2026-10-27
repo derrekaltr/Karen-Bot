@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { AppHeader } from "@/components/AppHeader";
 import { GuidedIntake } from "./intake";
 
 export const metadata: Metadata = {
@@ -9,22 +10,21 @@ export const metadata: Metadata = {
 export default function NewCasePage() {
   return (
     <div className="min-h-dvh">
-      <header className="border-b border-slate-100">
-        <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
-          <Link href="/" className="text-lg font-bold tracking-tight">
-            Karen<span className="text-accent-600">Bot</span>
-          </Link>
+      <AppHeader
+        right={
           <Link
             href="/dashboard"
-            className="text-sm font-medium text-ink-600 hover:text-ink-900"
+            className="text-sm font-bold text-ink-600 underline hover:text-ink-900"
           >
             Back to dashboard
           </Link>
-        </div>
-      </header>
+        }
+      />
 
       <main className="mx-auto max-w-3xl px-6 py-10">
-        <h1 className="text-2xl font-bold tracking-tight">Start a new case</h1>
+        <h1 className="font-display text-3xl tracking-tight">
+          Start a new case
+        </h1>
         <p className="mt-2 text-sm text-ink-600">
           Tell Karen what happened — she&apos;ll walk you through it.
         </p>

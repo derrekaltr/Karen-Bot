@@ -188,7 +188,7 @@ interface Bubble {
 }
 
 const inputClasses =
-  "min-h-11 rounded-lg border border-slate-300 bg-white px-4 text-sm focus:border-accent-600";
+  "min-h-11 rounded-xl border-2 border-black bg-white px-4 text-sm";
 
 export function GuidedIntake() {
   const router = useRouter();
@@ -601,8 +601,8 @@ export function GuidedIntake() {
                 key={bubble.id}
                 className={`max-w-[85%] rounded-xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
                   bubble.from === "karen"
-                    ? "self-start bg-slate-100 text-ink-900"
-                    : "self-end bg-accent-600 text-white"
+                    ? "self-start bg-face-100 text-ink-900"
+                    : "self-end border-2 border-black bg-accent-500 text-white"
                 }`}
               >
                 {bubble.text}
@@ -622,7 +622,7 @@ export function GuidedIntake() {
                         type="button"
                         disabled={busy}
                         onClick={() => void pickEvidenceGroup(group)}
-                        className="flex min-h-11 w-full flex-col gap-1 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-left transition-colors hover:border-accent-600 hover:bg-accent-50 disabled:opacity-60"
+                        className="flex min-h-11 w-full flex-col gap-1 rounded-xl border-2 border-black bg-white px-4 py-2.5 text-left transition-colors hover:bg-face-100 disabled:opacity-60"
                       >
                         <span className="text-sm font-semibold">
                           {group.label}
@@ -648,7 +648,7 @@ export function GuidedIntake() {
           <div ref={transcriptEndRef} />
         </div>
 
-        <div className="border-t border-slate-200 p-4">
+        <div className="border-t-2 border-dashed border-black p-4">
           {error !== null && (
             <p
               role="alert"
@@ -660,21 +660,19 @@ export function GuidedIntake() {
 
           {phase === "company" && selectedType === null && (
             <div>
-              <p className="mb-2 text-sm font-medium">What kind of company?</p>
-              <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+              <p className="mb-2 text-sm font-bold">What kind of company?</p>
+              <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                 {visibleTypes.map((tile) => (
                   <li key={tile.key}>
                     <button
                       type="button"
                       onClick={() => pickType(tile)}
-                      className="flex min-h-11 w-full flex-col items-start gap-1 rounded-lg border border-slate-300 bg-white px-4 py-3 text-left transition-colors hover:border-accent-600 hover:bg-accent-50"
+                      className="flex min-h-11 w-full flex-col items-start gap-1 rounded-xl border-2 border-black bg-white px-4 py-3 text-left shadow-[3px_3px_0_0_#000] transition-[transform,box-shadow,background-color] hover:translate-x-px hover:translate-y-px hover:bg-bob-100 hover:shadow-[2px_2px_0_0_#000]"
                     >
                       <span className="text-xl" aria-hidden="true">
                         {tile.emoji}
                       </span>
-                      <span className="text-sm font-semibold">
-                        {tile.label}
-                      </span>
+                      <span className="text-sm font-bold">{tile.label}</span>
                     </button>
                   </li>
                 ))}
@@ -687,28 +685,28 @@ export function GuidedIntake() {
               <button
                 type="button"
                 onClick={backToTypes}
-                className="mb-2 text-xs font-medium text-accent-600 hover:underline"
+                className="mb-2 text-xs font-bold text-accent-600 hover:underline"
               >
                 ← Back to types
               </button>
-              <p className="mb-2 text-sm font-medium">Pick the company</p>
+              <p className="mb-2 text-sm font-bold">Pick the company</p>
               <ul className="flex flex-col gap-2">
                 {typeCompanies.map((company) => (
                   <li key={company.id}>
                     <button
                       type="button"
                       onClick={() => pickCompany(company)}
-                      className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-left text-sm transition-colors hover:border-accent-600 hover:bg-accent-50"
+                      className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border-2 border-black bg-white px-4 py-2.5 text-left text-sm transition-colors hover:bg-face-100"
                     >
                       <span className="flex items-center gap-2">
-                        <span className="font-semibold">{company.name}</span>
+                        <span className="font-bold">{company.name}</span>
                         {TEST_COMPANY_NAMES.has(company.name) && (
-                          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-ink-400">
+                          <span className="rounded-full border-[1.5px] border-ink-400 px-2 py-0.5 text-xs font-bold text-ink-400">
                             test
                           </span>
                         )}
                         {!company.targetable && (
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-ink-600">
+                          <span className="rounded-full border-[1.5px] border-black bg-face-100 px-2 py-0.5 text-xs font-bold text-ink-600">
                             assist mode
                           </span>
                         )}
@@ -722,7 +720,7 @@ export function GuidedIntake() {
                 <li>
                   {showOtherInput ? (
                     <form
-                      className="rounded-lg border border-slate-300 bg-white p-4"
+                      className="rounded-xl border-2 border-black bg-white p-4"
                       onSubmit={(event) => {
                         event.preventDefault();
                         pickOtherCompany();
@@ -787,7 +785,7 @@ export function GuidedIntake() {
                         setError(null);
                         setShowOtherInput(true);
                       }}
-                      className="flex min-h-11 w-full items-center rounded-lg border border-dashed border-slate-300 bg-white px-4 py-2.5 text-left text-sm font-semibold transition-colors hover:border-accent-600 hover:bg-accent-50"
+                      className="flex min-h-11 w-full items-center rounded-xl border-2 border-dashed border-black bg-white px-4 py-2.5 text-left text-sm font-bold transition-colors hover:bg-face-100"
                     >
                       Other company…
                     </button>
@@ -806,7 +804,7 @@ export function GuidedIntake() {
               }}
             >
               {selectedCompany !== null && !selectedCompany.targetable && (
-                <p className="rounded-lg bg-slate-50 px-4 py-2.5 text-xs leading-relaxed text-ink-600">
+                <p className="rounded-xl bg-face-100 px-4 py-2.5 text-xs leading-relaxed text-ink-600">
                   {SMALL_BUSINESS_NOTE}
                 </p>
               )}
@@ -861,7 +859,7 @@ export function GuidedIntake() {
                   placeholder="Give Karen the details — dates, order numbers, who you talked to…"
                   value={description}
                   onChange={(event) => setDescription(event.target.value)}
-                  className="rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm"
+                  className="rounded-xl border-2 border-black bg-white px-4 py-3 text-sm"
                 />
               </div>
               <div>
@@ -990,11 +988,11 @@ export function GuidedIntake() {
           {phase === "contact" && (
             <div className="flex flex-col gap-4">
               {loaText !== null && (
-                <details className="rounded-lg border border-slate-200 bg-slate-50">
-                  <summary className="cursor-pointer px-4 py-3 text-sm font-semibold">
+                <details className="rounded-xl border-2 border-black bg-face-100">
+                  <summary className="cursor-pointer px-4 py-3 text-sm font-bold">
                     Your signed Letter of Authorization
                   </summary>
-                  <pre className="max-h-64 overflow-y-auto border-t border-slate-200 px-4 py-3 font-mono text-xs leading-relaxed whitespace-pre-wrap">
+                  <pre className="max-h-64 overflow-y-auto border-t-2 border-dashed border-black px-4 py-3 font-mono text-xs leading-relaxed whitespace-pre-wrap">
                     {loaText}
                   </pre>
                 </details>

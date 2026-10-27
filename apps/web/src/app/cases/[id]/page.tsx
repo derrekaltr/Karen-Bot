@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { AppHeader } from "@/components/AppHeader";
 import { CaseDetail } from "./case-detail";
 
 export const metadata: Metadata = {
@@ -14,19 +15,16 @@ export default async function CasePage({
   const { id } = await params;
   return (
     <div className="min-h-dvh">
-      <header className="border-b border-slate-100">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
-          <Link href="/" className="text-lg font-bold tracking-tight">
-            Karen<span className="text-accent-600">Bot</span>
-          </Link>
+      <AppHeader
+        right={
           <Link
             href="/dashboard"
-            className="text-sm font-medium text-ink-600 hover:text-ink-900"
+            className="text-sm font-bold text-ink-600 underline hover:text-ink-900"
           >
             Back to dashboard
           </Link>
-        </div>
-      </header>
+        }
+      />
       <main className="mx-auto max-w-4xl px-6 py-10">
         <CaseDetail caseId={id} />
       </main>

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -18,21 +19,20 @@ import {
   type ClaimCandidate,
 } from "@/lib/api";
 
-/** Badge styling per candidate kind: amber = expiring/owed travel money,
- *  red = you were double-charged, slate = merchandise that never arrived. */
+/** Badge styling per candidate kind: blonde = expiring/owed travel money,
+ *  red = you were double-charged, blue = merchandise that never arrived. */
 const KIND_BADGE_CLASSES: Record<string, string> = {
-  unused_flight_credit: "border-amber-200 bg-amber-100 text-amber-800",
-  cancelled_flight: "border-amber-200 bg-amber-100 text-amber-800",
-  duplicate_charge: "border-red-200 bg-red-100 text-red-700",
-  failed_delivery: "border-slate-200 bg-slate-100 text-ink-600",
+  unused_flight_credit: "bg-bob-100 text-ink-900",
+  cancelled_flight: "bg-bob-100 text-ink-900",
+  duplicate_charge: "bg-accent-100 text-accent-700",
+  failed_delivery: "bg-face-100 text-ink-600",
 };
 
 function KindBadge({ kind }: { kind: string }) {
-  const classes =
-    KIND_BADGE_CLASSES[kind] ?? "border-slate-200 bg-slate-100 text-ink-600";
+  const classes = KIND_BADGE_CLASSES[kind] ?? "bg-face-100 text-ink-600";
   return (
     <span
-      className={`inline-block rounded-full border px-2.5 py-0.5 text-xs font-medium ${classes}`}
+      className={`inline-block rounded-full border-[1.5px] border-black px-2.5 py-0.5 text-xs font-bold ${classes}`}
     >
       {humanize(kind)}
     </span>
@@ -145,9 +145,9 @@ function InboxScanPanel() {
         ) : (
           <div className="mt-6">
             <div className="flex items-center gap-2">
-              <h2 className="text-base font-semibold">Karen found money</h2>
+              <h2 className="font-display text-lg">Karen found money</h2>
               {scanSource === "mock" && (
-                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                <span className="rounded-full border-[1.5px] border-black bg-bob-100 px-2 py-0.5 text-xs font-bold">
                   Demo data — connect your email to scan your real inbox
                 </span>
               )}
@@ -158,12 +158,12 @@ function InboxScanPanel() {
                 const starting = startingRef === candidate.reference;
                 return (
                   <li key={candidate.reference}>
-                    <Card className="relative border-accent-500/40">
+                    <Card className="relative">
                       <button
                         type="button"
                         aria-label={`Dismiss: ${candidate.title}`}
                         onClick={() => dismiss(candidate.reference)}
-                        className="absolute top-3 right-3 flex size-8 items-center justify-center rounded-lg text-lg leading-none text-ink-400 hover:bg-slate-100 hover:text-ink-900"
+                        className="absolute top-3 right-3 flex size-8 items-center justify-center rounded-lg text-lg leading-none text-ink-400 hover:bg-face-100 hover:text-ink-900"
                       >
                         ×
                       </button>
@@ -176,9 +176,8 @@ function InboxScanPanel() {
                           <p className="mt-1 text-sm leading-relaxed text-ink-600">
                             {candidate.snippet}
                           </p>
-                          <p className="mt-1 text-xs text-ink-400">
-                            {candidate.company_name}
-                            {" · "}
+                          <p className="mt-1 text-xs font-medium text-ink-400">
+                            {candidate.company_name} —{" "}
                             {humanize(candidate.suggested_category)}
                           </p>
                         </div>
@@ -264,13 +263,15 @@ export function CasesList() {
       {cases.length === 0 ? (
         <div className="flex flex-1 items-center justify-center py-16">
           <div className="text-center">
-            <div
+            <Image
+              src="/karen.png"
+              alt=""
+              width={96}
+              height={97}
+              className="mx-auto"
               aria-hidden="true"
-              className="mx-auto flex size-14 items-center justify-center rounded-full bg-accent-50 text-2xl"
-            >
-              📂
-            </div>
-            <h2 className="mt-5 text-lg font-semibold">No active cases yet</h2>
+            />
+            <h2 className="mt-5 font-display text-xl">No active cases yet</h2>
             <p className="mx-auto mt-2 max-w-sm text-sm text-ink-600">
               When you start a case, Karen will track every email, escalation,
               and refund here.
@@ -286,11 +287,11 @@ export function CasesList() {
             const amount = formatAmount(c.requested_amount, c.currency);
             return (
               <li key={c.id}>
-                <Link href={`/cases/${c.id}`} className="block rounded-xl">
-                  <Card className="transition-colors hover:border-accent-500/60">
+                <Link href={`/cases/${c.id}`} className="block rounded-2xl">
+                  <Card className="transition-[transform,box-shadow] hover:-translate-x-px hover:-translate-y-px hover:shadow-[6px_6px_0_0_#000]">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <h2 className="text-base font-semibold">
+                        <h2 className="text-base font-bold">
                           {c.company_name ?? "Unknown company"}
                         </h2>
                         <p className="mt-0.5 text-sm text-ink-600">
@@ -300,11 +301,11 @@ export function CasesList() {
                       <StatusBadge status={c.status} />
                     </div>
                     <div className="mt-4 flex items-center justify-between">
-                      <span className="text-sm font-medium text-ink-900">
+                      <span className="text-sm font-bold text-ink-900">
                         {amount ?? "Amount TBD"}
                       </span>
-                      <span className="text-sm font-semibold text-accent-600">
-                        View case →
+                      <span className="text-sm font-bold text-accent-600 underline">
+                        View case
                       </span>
                     </div>
                   </Card>
