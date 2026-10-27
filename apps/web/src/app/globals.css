@@ -1,21 +1,43 @@
 @import "tailwindcss";
 
 @theme {
-  --color-accent-50: #eefbf5;
-  --color-accent-100: #d6f5e6;
-  --color-accent-500: #0e9f6e;
-  --color-accent-600: #0b815a;
-  --color-accent-700: #096849;
-  --color-ink-900: #0f172a;
-  --color-ink-600: #475569;
-  --color-ink-400: #94a3b8;
+  /* Karen palette — derived from the mascot: bobble red, bob blonde, face blue,
+     thick black outlines on white. Money green is reserved for recovered dollars. */
+  --color-accent-50: #fef1ef;
+  --color-accent-100: #fbdcd8;
+  --color-accent-500: #e23b30;
+  --color-accent-600: #c92f25;
+  --color-accent-700: #a5261e;
+  --color-bob-100: #faefd4;
+  --color-bob-400: #f0ce8c;
+  --color-bob-600: #d9a33f;
+  --color-face-100: #eaf5fc;
+  --color-face-300: #d8ecfa;
+  --color-money-100: #dff4e6;
+  --color-money-600: #17854b;
+  --color-money-700: #116a3c;
+  --color-ink-900: #000000;
+  --color-ink-600: #44443e;
+  --color-ink-400: #8a8a82;
+
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-archivo-black), ui-sans-serif, system-ui, sans-serif;
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-accent-600);
+  outline: 3px solid var(--color-accent-500);
   outline-offset: 2px;
 }
 
 body {
-  @apply bg-white text-ink-900 antialiased;
+  @apply bg-white font-sans text-ink-900 antialiased;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }

@@ -6,16 +6,16 @@ import {
 } from "@/lib/api";
 
 const toneClasses: Record<StatusTone, string> = {
-  green: "bg-accent-100 text-accent-700",
-  amber: "bg-amber-100 text-amber-800",
-  red: "bg-red-100 text-red-700",
-  neutral: "bg-slate-100 text-ink-600",
+  green: "bg-money-100 text-money-700",
+  amber: "bg-bob-100 text-ink-900",
+  red: "bg-accent-100 text-accent-700",
+  neutral: "bg-face-100 text-ink-600",
 };
 
 export function StatusBadge({ status }: { status: CaseStatus }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${toneClasses[statusTone(status)]}`}
+      className={`inline-flex items-center rounded-full border-[1.5px] border-black px-2.5 py-1 text-xs font-bold ${toneClasses[statusTone(status)]}`}
     >
       {humanize(status)}
     </span>
