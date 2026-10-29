@@ -27,7 +27,41 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${archivo.variable} ${archivoBlack.variable}`}>
       <body className="min-h-dvh">
-        <ClerkProvider>
+        <ClerkProvider
+          appearance={{
+            variables: {
+              colorPrimary: "#e23b30",
+              colorForeground: "#000000",
+              borderRadius: "12px",
+              fontFamily:
+                "var(--font-archivo), ui-sans-serif, system-ui, sans-serif",
+            },
+            elements: {
+              cardBox:
+                "rounded-2xl border-2 border-black shadow-[6px_6px_0_0_#000]",
+              card: "rounded-2xl",
+              formButtonPrimary:
+                "rounded-xl border-2 border-black bg-accent-500 text-white shadow-[3px_3px_0_0_#000] hover:bg-accent-600",
+              socialButtonsBlockButton:
+                "rounded-xl border-2 border-black bg-white hover:bg-face-100",
+              formFieldInput: "rounded-xl border-2 border-black",
+            },
+          }}
+          localization={{
+            signIn: {
+              start: {
+                title: "Sign in to KarenBot",
+                subtitle: "Karen's ready when you are.",
+              },
+            },
+            signUp: {
+              start: {
+                title: "Create your KarenBot account",
+                subtitle: "They owe you. Let's go get it.",
+              },
+            },
+          }}
+        >
           <ClerkTokenBridge />
           {children}
         </ClerkProvider>
