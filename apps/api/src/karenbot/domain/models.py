@@ -410,6 +410,27 @@ class RecurringCharge(TimestampMixin, Base):
     )
 
 
+class UserCompany(TimestampMixin, Base):
+    """A company the user does business with — their "uses" profile.
+
+    Built only by user-initiated actions (inbox scan button, manual add,
+    later Plaid) and always shown to the user to edit. Powers "this event
+    affects you" matching on the public events feed.
+    """
+
+    __tablename__ = "user_companies"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
+    company_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("companies.id"))
+    company_name: Mapped[str] = mapped_column(String(200))
+    source: Mapped[str] = mapped_column(String(20))  # email_scan | manual | plaid
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "company_name", name="uq_user_company_name"),
+    )
+
+
 class ClaimEvent(TimestampMixin, Base):
     """A public incident (outage, disruption, recall) where a published
     policy owes affected customers something.

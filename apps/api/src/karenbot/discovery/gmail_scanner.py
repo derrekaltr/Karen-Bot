@@ -160,6 +160,25 @@ class GmailInboxScanner:
         candidates.sort(key=lambda c: c.occurred_at, reverse=True)
         return candidates
 
+    def list_senders(self) -> list[str]:
+        """Recent sender addresses (user-initiated company discovery).
+
+        Bills and receipts are what identify a vendor relationship, so the
+        query leans on billing vocabulary rather than reading everything.
+        """
+        senders: set[str] = set()
+        for query in (
+            "newer_than:180d (bill OR statement OR receipt OR invoice)",
+            "newer_than:180d (reservation OR itinerary OR confirmation)",
+        ):
+            try:
+                for message in self._search(query, 40):
+                    if message.sender_address:
+                        senders.add(message.sender_address.lower())
+            except httpx.HTTPError:
+                continue
+        return sorted(senders)
+
     def find_evidence(self, company_name: str, keywords: list[str]) -> list[EvidenceHit]:
         # Company name exact-phrase plus the most distinctive claim keyword.
         distinctive = [k for k in keywords if len(k) > 4][:2]

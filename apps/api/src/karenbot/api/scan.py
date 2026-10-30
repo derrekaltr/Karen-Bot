@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from karenbot.channels.oauth import ReconnectRequired
 from karenbot.discovery.inbox_scan import get_inbox_scanner
 from karenbot.domain.enums import ActorType
 from karenbot.domain.models import AuditEvent, Case, CaseEvidence, User
@@ -75,6 +76,14 @@ class AttachIn(BaseModel):
     items: list[HitOut]
 
 
+class CompanyScanOut(BaseModel):
+    source: str
+    # Company names recognized from inbox senders (newly added or already
+    # on the profile). Unrecognized senders are never stored.
+    found: list[str]
+    added: int
+
+
 def build_router() -> APIRouter:
     from karenbot.api.main import current_user, get_db
 
@@ -91,7 +100,10 @@ def build_router() -> APIRouter:
         from karenbot.discovery.inbox_scan import MockInboxScanner
 
         source = "mock" if isinstance(scanner, MockInboxScanner) else "live"
-        candidates = scanner.scan_claims()
+        try:
+            candidates = scanner.scan_claims()
+        except ReconnectRequired as exc:
+            raise HTTPException(409, str(exc)) from exc
         db.add(
             AuditEvent(
                 actor_type=ActorType.CUSTOMER.value,
@@ -124,6 +136,62 @@ def build_router() -> APIRouter:
             out.append(CandidateOut(**candidate.__dict__, estimated_value=estimated))
         return InboxScanOut(source=source, candidates=out)
 
+    @router.post("/companies", response_model=CompanyScanOut)
+    def scan_companies(
+        user: User = Depends(current_user), db: Session = Depends(get_db)
+    ) -> CompanyScanOut:
+        """User-initiated: find companies this inbox does business with."""
+        try:
+            scanner = get_inbox_scanner(db, user)
+        except NotImplementedError as exc:
+            raise HTTPException(503, str(exc)) from exc
+        from karenbot.discovery.company_profile import companies_from_senders
+        from karenbot.discovery.inbox_scan import MockInboxScanner
+        from karenbot.domain.models import Company, UserCompany
+
+        source = "mock" if isinstance(scanner, MockInboxScanner) else "live"
+        try:
+            senders = scanner.list_senders()
+        except ReconnectRequired as exc:
+            raise HTTPException(409, str(exc)) from exc
+        companies = db.scalars(select(Company)).all()
+        names = companies_from_senders(senders, [c.name for c in companies])
+        by_name = {c.name: c for c in companies}
+        existing = {
+            uc.company_name
+            for uc in db.scalars(
+                select(UserCompany).where(UserCompany.user_id == user.id)
+            )
+        }
+        added = 0
+        for name in sorted(names):
+            if name in existing:
+                continue
+            company = by_name.get(name)
+            db.add(
+                UserCompany(
+                    user_id=user.id,
+                    company_id=company.id if company else None,
+                    company_name=name,
+                    source="email_scan",
+                )
+            )
+            added += 1
+        db.add(
+            AuditEvent(
+                actor_type=ActorType.CUSTOMER.value,
+                actor_id=str(user.id),
+                event_type="scan.companies",
+                event_payload={
+                    "senders_seen": len(senders),
+                    "matched": len(names),
+                    "added": added,
+                },
+            )
+        )
+        db.flush()
+        return CompanyScanOut(source=source, found=sorted(names), added=added)
+
     @router.post("/cases/{case_id}/evidence", response_model=EvidenceScanOut)
     def scan_case_evidence(
         case_id: uuid.UUID,
@@ -143,7 +211,10 @@ def build_router() -> APIRouter:
         source = "mock" if isinstance(scanner, MockInboxScanner) else "live"
         company = case.company
         keywords = [case.category, *case.category.split("_")]
-        hits = scanner.find_evidence(company.name, keywords)
+        try:
+            hits = scanner.find_evidence(company.name, keywords)
+        except ReconnectRequired as exc:
+            raise HTTPException(409, str(exc)) from exc
 
         groups = group_hits(hits)
         import json as _json

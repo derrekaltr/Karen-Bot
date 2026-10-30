@@ -250,6 +250,84 @@ def get_event(event_id: uuid.UUID, db: Session = Depends(get_db)) -> dict[str, A
 
 
 # --------------------------------------------------------------------------
+# My companies (the user's "uses" profile; powers affects-you matching)
+# --------------------------------------------------------------------------
+
+
+class UserCompanyOut(BaseModel):
+    id: uuid.UUID
+    company_name: str
+    source: str
+
+
+class UserCompanyIn(BaseModel):
+    company_name: str
+
+
+@app.get("/me/companies", response_model=list[UserCompanyOut])
+def list_my_companies(
+    user: User = Depends(current_user), db: Session = Depends(get_db)
+) -> list[UserCompanyOut]:
+    from karenbot.domain.models import UserCompany
+
+    return [
+        UserCompanyOut(id=uc.id, company_name=uc.company_name, source=uc.source)
+        for uc in db.scalars(
+            select(UserCompany)
+            .where(UserCompany.user_id == user.id)
+            .order_by(UserCompany.company_name)
+        )
+    ]
+
+
+@app.post("/me/companies", response_model=UserCompanyOut)
+def add_my_company(
+    payload: UserCompanyIn,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> UserCompanyOut:
+    from karenbot.domain.models import UserCompany
+
+    name = payload.company_name.strip()
+    if not name or len(name) > 200:
+        raise HTTPException(422, "company name must be 1-200 characters")
+    existing = db.scalars(
+        select(UserCompany).where(
+            UserCompany.user_id == user.id, UserCompany.company_name == name
+        )
+    ).first()
+    if existing is not None:
+        return UserCompanyOut(
+            id=existing.id, company_name=existing.company_name, source=existing.source
+        )
+    company = db.scalars(select(Company).where(Company.name == name)).first()
+    row = UserCompany(
+        user_id=user.id,
+        company_id=company.id if company else None,
+        company_name=name,
+        source="manual",
+    )
+    db.add(row)
+    db.flush()
+    return UserCompanyOut(id=row.id, company_name=row.company_name, source=row.source)
+
+
+@app.delete("/me/companies/{user_company_id}")
+def remove_my_company(
+    user_company_id: uuid.UUID,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, bool]:
+    from karenbot.domain.models import UserCompany
+
+    row = db.get(UserCompany, user_company_id)
+    if row is None or row.user_id != user.id:
+        raise HTTPException(404, "not found")
+    db.delete(row)
+    return {"removed": True}
+
+
+# --------------------------------------------------------------------------
 # Cases
 # --------------------------------------------------------------------------
 

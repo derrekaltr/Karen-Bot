@@ -120,6 +120,22 @@ def exchange_code(provider_key: str, code: str, http: httpx.Client) -> dict[str,
     return _normalize(response.json())
 
 
+class ReconnectRequired(Exception):
+    """The stored grant is no longer usable — the user must reconnect.
+
+    Raised instead of a generic HTTP error so scanners/endpoints can tell
+    "we couldn't look" apart from "we looked and found nothing". Google
+    testing-mode refresh tokens, notably, expire after 7 days.
+    """
+
+    def __init__(self, provider_key: str):
+        self.provider_key = provider_key
+        super().__init__(
+            f"{provider_key} connection expired or was revoked — reconnect it "
+            "under Connected Accounts and try again."
+        )
+
+
 def refresh_tokens(
     provider_key: str, tokens: dict[str, Any], http: httpx.Client
 ) -> dict[str, Any]:
@@ -134,6 +150,9 @@ def refresh_tokens(
             "grant_type": "refresh_token",
         },
     )
+    if response.status_code == 400:
+        # invalid_grant: the refresh token is expired or revoked.
+        raise ReconnectRequired(provider_key)
     response.raise_for_status()
     return _normalize(response.json(), prior=tokens)
 

@@ -357,6 +357,39 @@ export function getEvent(eventId: string): Promise<ClaimEventDetail> {
   return request(`/events/${eventId}`);
 }
 
+/** A company on the user's "uses" profile (powers affects-you matching). */
+export interface UserCompany {
+  id: string;
+  company_name: string;
+  source: "email_scan" | "manual" | "plaid";
+}
+
+export function listMyCompanies(): Promise<UserCompany[]> {
+  return request("/me/companies");
+}
+
+export function addMyCompany(companyName: string): Promise<UserCompany> {
+  return request("/me/companies", {
+    method: "POST",
+    body: { company_name: companyName },
+  });
+}
+
+export function removeMyCompany(
+  userCompanyId: string,
+): Promise<{ removed: boolean }> {
+  return request(`/me/companies/${userCompanyId}`, { method: "DELETE" });
+}
+
+/** User-initiated: scan inbox senders for companies they do business with. */
+export function scanCompanies(): Promise<{
+  source: "mock" | "live";
+  found: string[];
+  added: number;
+}> {
+  return request("/scan/companies", { method: "POST" });
+}
+
 export function createCase(input: {
   company_name: string;
   category: string;

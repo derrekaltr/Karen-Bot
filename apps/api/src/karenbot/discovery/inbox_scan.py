@@ -48,6 +48,10 @@ class InboxScanner(Protocol):
 
     def find_evidence(self, company_name: str, keywords: list[str]) -> list[EvidenceHit]: ...
 
+    def list_senders(self) -> list[str]:
+        """Recent sender addresses, for user-initiated company discovery."""
+        ...
+
 
 @dataclass
 class MockInboxScanner:
@@ -109,6 +113,17 @@ class MockInboxScanner:
 
     def scan_claims(self) -> list[ClaimCandidate]:
         return self._candidates()
+
+    def list_senders(self) -> list[str]:
+        return [
+            "billing@att.com",
+            "no-reply@e.delta.com",
+            "receipts@uber.com",
+            "info@netflix.com",
+            "statements@americanexpress.com",
+            "updates@acmeair.example",
+            "newsletter@randomblog.example",  # must NOT become a company
+        ]
 
     def find_evidence(self, company_name: str, keywords: list[str]) -> list[EvidenceHit]:
         needle = company_name.lower().split()[0]
