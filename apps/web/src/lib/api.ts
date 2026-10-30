@@ -248,6 +248,8 @@ export interface CaseEvidenceItem {
 
 export const PERSONAS = [
   "lowball_then_accept",
+  "cancels_cleanly",
+  "retention_offer_then_cancel",
   "immediate_refund",
   "stonewall",
   "asks_for_evidence",
