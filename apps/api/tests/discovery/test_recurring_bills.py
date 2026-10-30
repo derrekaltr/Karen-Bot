@@ -161,3 +161,44 @@ def test_revoking_connection_drops_credentials(client, db):
     with get_session_factory()() as session:
         row = session.scalars(select(BankConnection)).one()
         assert row.encrypted_access_token is None
+
+
+def test_email_receipt_scan_detects_subscriptions_without_bank(client):
+    """No bank linked: billing receipts in the mailbox become charges."""
+    r = client.post("/banking/subscriptions/scan-email", headers=USER)
+    assert r.status_code == 200, r.text
+    subs = r.json()
+    by_name = {s["merchant_name"]: s for s in subs}
+    assert "Uber One" in by_name and "Netflix" in by_name
+    assert all(s["source"] == "email_scan" for s in subs)
+    # Uber One matches the seeded enterprise Uber -> agent-cancellable.
+    assert by_name["Uber One"]["company_targetable"] is True
+    assert by_name["Netflix"]["company_targetable"] is False
+    assert float(by_name["Uber One"]["yearly_cost"]) == pytest.approx(9.99 * 12)
+
+
+def test_email_scan_idempotent_and_plaid_wins(client):
+    client.post("/banking/subscriptions/scan-email", headers=USER)
+    first = client.post("/banking/subscriptions/scan-email", headers=USER).json()
+    assert len(first) == len(
+        client.post("/banking/subscriptions/scan-email", headers=USER).json()
+    )
+    # Linking the bank afterwards: Plaid rows join, email rows stay distinct.
+    _link_and_refresh(client)
+    subs = client.get("/banking/subscriptions", headers=USER).json()
+    sources = {s["merchant_name"]: s["source"] for s in subs}
+    assert sources["Uber One"] == "email_scan"
+    assert sources["StreamFlix"] == "plaid"
+
+
+def test_email_detected_charge_can_be_cancelled(client):
+    subs = client.post("/banking/subscriptions/scan-email", headers=USER).json()
+    uber = next(s for s in subs if s["merchant_name"] == "Uber One")
+    r = client.post(
+        f"/banking/subscriptions/{uber['id']}/action",
+        headers=USER,
+        json={"action": "cancel"},
+    )
+    assert r.status_code == 200
+    assert r.json()["contact_mode"] == "agent"
+    assert r.json()["status"] == "AWAITING_AUTHORIZATION"

@@ -14,6 +14,7 @@ import {
   listSubscriptions,
   refreshSubscriptions,
   revokeConnection,
+  scanEmailSubscriptions,
   type BankConnection,
   type Subscription,
   type SubscriptionAction,
@@ -50,6 +51,7 @@ export function Subscriptions() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [rescanning, setRescanning] = useState(false);
+  const [emailScanning, setEmailScanning] = useState(false);
   /** Subscription id with an in-flight action (disables its buttons). */
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -128,6 +130,19 @@ export function Subscriptions() {
     }
   }
 
+  async function scanEmail() {
+    setActionError(null);
+    setEmailScanning(true);
+    try {
+      const subs = await scanEmailSubscriptions();
+      setSubscriptions(subs);
+    } catch (err) {
+      setActionError(describeError(err));
+    } finally {
+      setEmailScanning(false);
+    }
+  }
+
   async function act(sub: Subscription, action: SubscriptionAction) {
     setActionError(null);
     setBusyId(sub.id);
@@ -180,32 +195,43 @@ export function Subscriptions() {
         </p>
       )}
 
-      {connections.length === 0 ? (
-        /* Hero — no bank linked yet */
+      {connections.length === 0 && subscriptions.length === 0 ? (
+        /* Hero — nothing detected yet */
         <Card className="flex flex-col items-start gap-4 bg-face-100 p-8">
           <h2 className="font-display text-2xl tracking-tight">
             Find bills you forgot you were paying
           </h2>
           <p className="max-w-xl text-sm leading-relaxed text-ink-600">
-            Link a bank account and Karen will scan your transactions for
-            recurring charges — gym memberships, streaming services, that app
-            you tried once. Then she&apos;ll cancel them, negotiate them down,
-            or claw your money back.
+            Karen hunts recurring charges — gym memberships, streaming
+            services, that app you tried once — then cancels them, negotiates
+            them down, or claws your money back. Two ways to find them:
           </p>
-          <Button disabled={connecting} onClick={() => void connectBank()}>
-            {connecting
-              ? "Connecting & scanning transactions…"
-              : "Connect a bank account (demo)"}
-          </Button>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button disabled={emailScanning} onClick={() => void scanEmail()}>
+              {emailScanning
+                ? "Reading your receipts…"
+                : "Scan my email for subscriptions"}
+            </Button>
+            <Button
+              variant="secondary"
+              disabled={connecting}
+              onClick={() => void connectBank()}
+            >
+              {connecting
+                ? "Connecting & scanning transactions…"
+                : "Connect a bank account (demo)"}
+            </Button>
+          </div>
           <p className="text-xs text-ink-400">
-            Demo mode links a mock bank instantly. In production this opens
-            Plaid Link — a secure bank login flow; KarenBot never sees your
-            credentials.
+            The email scan reads billing receipts in your connected inbox,
+            only when you click. Bank data catches more (some subscriptions
+            never email) — in production that opens Plaid Link, a secure bank
+            login; KarenBot never sees your credentials.
           </p>
         </Card>
       ) : (
         <>
-          {/* Connections + re-scan */}
+          {/* Connections + scans */}
           <div className="flex flex-wrap items-center gap-3">
             {connections.map((connection) => (
               <span
@@ -224,12 +250,21 @@ export function Subscriptions() {
                 </button>
               </span>
             ))}
+            {connections.length > 0 && (
+              <Button
+                variant="secondary"
+                disabled={rescanning}
+                onClick={() => void rescan()}
+              >
+                {rescanning ? "Scanning…" : "Re-scan bank"}
+              </Button>
+            )}
             <Button
               variant="secondary"
-              disabled={rescanning}
-              onClick={() => void rescan()}
+              disabled={emailScanning}
+              onClick={() => void scanEmail()}
             >
-              {rescanning ? "Scanning…" : "Re-scan"}
+              {emailScanning ? "Reading receipts…" : "Scan email receipts"}
             </Button>
           </div>
 
@@ -284,6 +319,9 @@ export function Subscriptions() {
                               ? ` — last on ${new Date(
                                   sub.last_seen,
                                 ).toLocaleDateString()}`
+                              : ""}
+                            {sub.source === "email_scan"
+                              ? " — from email receipts"
                               : ""}
                           </p>
                         </div>

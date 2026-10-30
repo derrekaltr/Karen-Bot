@@ -389,7 +389,12 @@ class RecurringCharge(TimestampMixin, Base):
 
     id: Mapped[uuid.UUID] = uuid_pk()
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
-    bank_connection_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("bank_connections.id"))
+    # Null for charges detected from email receipts rather than a bank feed.
+    bank_connection_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("bank_connections.id")
+    )
+    # Where the detection came from: "plaid" | "email_scan".
+    source: Mapped[str] = mapped_column(String(20), default="plaid")
     merchant_name: Mapped[str] = mapped_column(String(200))
     normalized_merchant: Mapped[str] = mapped_column(String(200))
     amount: Mapped[Decimal] = mapped_column(sa.Numeric(12, 2))

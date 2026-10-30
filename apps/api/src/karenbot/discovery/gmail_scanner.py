@@ -18,10 +18,14 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from email.utils import parseaddr
+from typing import TYPE_CHECKING
 
 import httpx
 
 from karenbot.discovery.inbox_scan import ClaimCandidate, EvidenceHit
+
+if TYPE_CHECKING:
+    from karenbot.discovery.plaid import RecurringStream
 
 API = "https://gmail.googleapis.com/gmail/v1/users/me"
 
@@ -178,6 +182,81 @@ class GmailInboxScanner:
             except httpx.HTTPError:
                 continue
         return sorted(senders)
+
+    def find_recurring_receipts(self) -> list["RecurringStream"]:
+        """Infer recurring charges from billing receipts in the mailbox.
+
+        Heuristic v1: group receipt-like messages by sender domain label,
+        keep groups with 2+ messages whose snippets carry a stable dollar
+        amount, and classify cadence from the median gap between messages.
+        """
+        from statistics import median
+
+        from karenbot.discovery.company_profile import sender_label
+        from karenbot.discovery.plaid import RecurringStream
+
+        seen_ids: set[str] = set()
+        messages: list[_Message] = []
+        for query in (
+            'newer_than:210d subject:(receipt OR invoice OR "payment confirmation" OR renewal)',
+            'newer_than:210d ("your receipt" OR "payment received" OR "subscription renew")',
+        ):
+            try:
+                for message in self._search(query, 60):
+                    if message.id not in seen_ids:
+                        seen_ids.add(message.id)
+                        messages.append(message)
+            except httpx.HTTPError:
+                continue
+
+        groups: dict[str, list[_Message]] = {}
+        for message in messages:
+            label = sender_label(message.sender_address)
+            if label:
+                groups.setdefault(label, []).append(message)
+
+        streams: list[RecurringStream] = []
+        for group in groups.values():
+            if len(group) < 2:
+                continue
+            amounts = []
+            for message in group:
+                m = AMOUNT_RE.search(message.snippet) or AMOUNT_RE.search(message.subject)
+                if m:
+                    amounts.append(Decimal(m.group(1).replace(",", "")))
+            if not amounts:
+                continue
+            # Stable amount: the most frequent one in the group.
+            amount = max(set(amounts), key=amounts.count)
+            dates = sorted(m.received_at for m in group)
+            gaps = [
+                (b - a).days for a, b in zip(dates, dates[1:], strict=False) if (b - a).days > 0
+            ]
+            if not gaps:
+                continue
+            gap = median(gaps)
+            if 5 <= gap <= 9:
+                cadence = "weekly"
+            elif 21 <= gap <= 45:
+                cadence = "monthly"
+            elif 300 <= gap <= 430:
+                cadence = "yearly"
+            else:
+                continue  # irregular: not a subscription we can assert
+            sender_names = [m.sender_name for m in group if m.sender_name]
+            merchant = max(set(sender_names), key=sender_names.count) if sender_names else "Unknown"
+            streams.append(
+                RecurringStream(
+                    merchant_name=merchant,
+                    amount=amount,
+                    currency="USD",
+                    cadence=cadence,
+                    first_date=dates[0],
+                    last_date=dates[-1],
+                    occurrences=len(group),
+                )
+            )
+        return streams
 
     def find_evidence(self, company_name: str, keywords: list[str]) -> list[EvidenceHit]:
         # Company name exact-phrase plus the most distinctive claim keyword.

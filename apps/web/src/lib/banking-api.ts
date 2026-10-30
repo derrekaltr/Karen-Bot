@@ -34,6 +34,8 @@ export type SubscriptionAction = "cancel" | "negotiate" | "refund" | "dismiss";
 
 export interface Subscription {
   id: string;
+  /** Where the detection came from. */
+  source: "plaid" | "email_scan";
   merchant_name: string;
   /** Pydantic serializes Decimal as a JSON string. */
   amount: string;
@@ -127,6 +129,12 @@ export function refreshSubscriptions(): Promise<Subscription[]> {
 
 export function listSubscriptions(): Promise<Subscription[]> {
   return request("/banking/subscriptions");
+}
+
+/** Detect recurring charges from billing receipts in the connected mailbox —
+ *  no bank connection required. User-initiated. */
+export function scanEmailSubscriptions(): Promise<Subscription[]> {
+  return request("/banking/subscriptions/scan-email", { method: "POST" });
 }
 
 export function actOnSubscription(

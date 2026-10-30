@@ -21,7 +21,7 @@ from karenbot.agent.runner import AgentRuntime
 from karenbot.discovery import service as discovery
 from karenbot.discovery.plaid import get_plaid_client
 from karenbot.domain.enums import ActorType, CaseEvent
-from karenbot.domain.models import BankConnection, RecurringCharge, User
+from karenbot.domain.models import AuditEvent, BankConnection, RecurringCharge, User
 from karenbot.domain.state_machine import transition
 
 
@@ -37,6 +37,7 @@ class BankConnectionOut(BaseModel):
 
 class SubscriptionOut(BaseModel):
     id: uuid.UUID
+    source: str  # plaid | email_scan
     merchant_name: str
     amount: Decimal
     currency: str
@@ -114,6 +115,33 @@ def build_router(get_runtime: Callable[[], AgentRuntime]) -> APIRouter:
         discovery.refresh_recurring(db, user, get_plaid_client())
         return _list(db, user)
 
+    @router.post("/subscriptions/scan-email", response_model=list[SubscriptionOut])
+    def scan_email_subscriptions(
+        user: User = Depends(current_user), db: Session = Depends(get_db)
+    ) -> list[SubscriptionOut]:
+        """User-initiated: detect recurring charges from billing receipts in
+        the connected mailbox. No bank connection required."""
+        from karenbot.channels.oauth import ReconnectRequired
+        from karenbot.discovery.inbox_scan import get_inbox_scanner
+
+        try:
+            scanner = get_inbox_scanner(db, user)
+        except NotImplementedError as exc:
+            raise HTTPException(503, str(exc)) from exc
+        try:
+            found = discovery.refresh_email_recurring(db, user, scanner)
+        except ReconnectRequired as exc:
+            raise HTTPException(409, str(exc)) from exc
+        db.add(
+            AuditEvent(
+                actor_type=ActorType.CUSTOMER.value,
+                actor_id=str(user.id),
+                event_type="scan.email_subscriptions",
+                event_payload={"found": len(found)},
+            )
+        )
+        return _list(db, user)
+
     @router.get("/subscriptions", response_model=list[SubscriptionOut])
     def subscriptions(
         user: User = Depends(current_user), db: Session = Depends(get_db)
@@ -135,6 +163,7 @@ def build_router(get_runtime: Callable[[], AgentRuntime]) -> APIRouter:
             out.append(
                 SubscriptionOut(
                     id=charge.id,
+                    source=charge.source,
                     merchant_name=charge.merchant_name,
                     amount=charge.amount,
                     currency=charge.currency,

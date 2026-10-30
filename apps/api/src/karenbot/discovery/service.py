@@ -98,33 +98,74 @@ def refresh_recurring(
             continue
         token = decrypt_json(connection.encrypted_access_token)["access_token"]
         for stream in client.get_recurring(token):
-            normalized = normalize_merchant(stream.merchant_name)
-            charge = session.scalars(
-                select(RecurringCharge).where(
-                    RecurringCharge.user_id == user.id,
-                    RecurringCharge.normalized_merchant == normalized,
-                    RecurringCharge.cadence == stream.cadence,
-                )
-            ).first()
-            if charge is None:
-                charge = RecurringCharge(
-                    user_id=user.id,
-                    bank_connection_id=connection.id,
-                    merchant_name=stream.merchant_name,
-                    normalized_merchant=normalized,
-                    amount=stream.amount,
-                    currency=stream.currency,
-                    cadence=stream.cadence,
-                )
-                session.add(charge)
-            charge.amount = stream.amount
-            charge.first_seen = stream.first_date
-            charge.last_seen = stream.last_date
-            charge.occurrences = stream.occurrences
-            charge.company_id = _match_company(session, stream.merchant_name)
-            charges.append(charge)
+            charges.append(
+                _upsert_stream(session, user, stream, connection_id=connection.id, source="plaid")
+            )
     session.flush()
     return charges
+
+
+def refresh_email_recurring(session: Session, user: User, scanner) -> list[RecurringCharge]:
+    """Upsert recurring charges inferred from billing receipts in the user's
+    connected mailbox. Bank-free detection — same charge rows, same actions;
+    Plaid-sourced data wins on conflicts (bank feeds are ground truth)."""
+    charges: list[RecurringCharge] = []
+    for stream in scanner.find_recurring_receipts():
+        normalized = normalize_merchant(stream.merchant_name)
+        existing = session.scalars(
+            select(RecurringCharge).where(
+                RecurringCharge.user_id == user.id,
+                RecurringCharge.normalized_merchant == normalized,
+                RecurringCharge.cadence == stream.cadence,
+            )
+        ).first()
+        if existing is not None and existing.source == "plaid":
+            charges.append(existing)
+            continue
+        charges.append(
+            _upsert_stream(session, user, stream, connection_id=None, source="email_scan")
+        )
+    session.flush()
+    return charges
+
+
+def _upsert_stream(
+    session: Session,
+    user: User,
+    stream,
+    *,
+    connection_id: uuid.UUID | None,
+    source: str,
+) -> RecurringCharge:
+    normalized = normalize_merchant(stream.merchant_name)
+    charge = session.scalars(
+        select(RecurringCharge).where(
+            RecurringCharge.user_id == user.id,
+            RecurringCharge.normalized_merchant == normalized,
+            RecurringCharge.cadence == stream.cadence,
+        )
+    ).first()
+    if charge is None:
+        charge = RecurringCharge(
+            user_id=user.id,
+            bank_connection_id=connection_id,
+            merchant_name=stream.merchant_name,
+            normalized_merchant=normalized,
+            amount=stream.amount,
+            currency=stream.currency,
+            cadence=stream.cadence,
+            source=source,
+        )
+        session.add(charge)
+    charge.amount = stream.amount
+    charge.first_seen = stream.first_date
+    charge.last_seen = stream.last_date
+    charge.occurrences = stream.occurrences
+    charge.company_id = _match_company(session, stream.merchant_name)
+    charge.source = source
+    if connection_id is not None:
+        charge.bank_connection_id = connection_id
+    return charge
 
 
 def _match_company(session: Session, merchant_name: str) -> uuid.UUID | None:

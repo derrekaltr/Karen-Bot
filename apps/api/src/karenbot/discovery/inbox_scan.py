@@ -17,9 +17,12 @@ IMAP SEARCH) over the connected account; dev uses the mock below.
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from karenbot.config import get_settings
+
+if TYPE_CHECKING:
+    from karenbot.discovery.plaid import RecurringStream
 
 
 @dataclass(frozen=True)
@@ -50,6 +53,12 @@ class InboxScanner(Protocol):
 
     def list_senders(self) -> list[str]:
         """Recent sender addresses, for user-initiated company discovery."""
+        ...
+
+    def find_recurring_receipts(self) -> list["RecurringStream"]:
+        """Recurring charges inferred from billing-receipt emails: repeated
+        same-sender receipts with a stable amount and a regular gap. A
+        bank-free (lower-fidelity) alternative to Plaid detection."""
         ...
 
 
@@ -123,6 +132,20 @@ class MockInboxScanner:
             "statements@americanexpress.com",
             "updates@acmeair.example",
             "newsletter@randomblog.example",  # must NOT become a company
+        ]
+
+    def find_recurring_receipts(self) -> list["RecurringStream"]:
+        from karenbot.discovery.plaid import RecurringStream
+
+        now = self.now
+        return [
+            # Enterprise merchant (matches seeded Uber) -> agent-cancellable.
+            RecurringStream(
+                "Uber One", Decimal("9.99"), "USD", "monthly", now - timedelta(days=150), now - timedelta(days=3), 5
+            ),
+            RecurringStream(
+                "Netflix", Decimal("15.49"), "USD", "monthly", now - timedelta(days=180), now - timedelta(days=10), 6
+            ),
         ]
 
     def find_evidence(self, company_name: str, keywords: list[str]) -> list[EvidenceHit]:
