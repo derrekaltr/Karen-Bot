@@ -13,12 +13,14 @@ import {
   completeIntake,
   createCase,
   getCategoryCatalog,
+  getEvent,
   humanize,
   initiateContact,
   listCompanies,
   seed,
   type CategoryCatalog,
   type CategoryOption,
+  type ClaimEventDetail,
   type Company,
   type EvidenceGroup,
 } from "@/lib/api";
@@ -190,7 +192,7 @@ interface Bubble {
 const inputClasses =
   "min-h-11 rounded-xl border-2 border-black bg-white px-4 text-sm";
 
-export function GuidedIntake() {
+export function GuidedIntake({ eventId = null }: { eventId?: string | null }) {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>("loading");
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -212,6 +214,10 @@ export function GuidedIntake() {
   const [category, setCategory] = useState("");
   const [customCategory, setCustomCategory] = useState("");
   const [description, setDescription] = useState("");
+  /** Set when intake was opened from a public claimable event. */
+  const [eventContext, setEventContext] = useState<ClaimEventDetail | null>(
+    null,
+  );
 
   // Step 2 state
   const [caseId, setCaseId] = useState<string | null>(null);
@@ -248,6 +254,35 @@ export function GuidedIntake() {
         if (cancelled) return;
         setCompanies(result);
         setCatalog(categoryCatalog);
+        if (eventId !== null) {
+          try {
+            const event = await getEvent(eventId);
+            if (cancelled) return;
+            setEventContext(event);
+            const match = result.find(
+              (c) => c.name.toLowerCase() === event.company_name.toLowerCase(),
+            );
+            if (match !== undefined) {
+              setSelectedCompany(match);
+              setCompanyName(match.name);
+            } else {
+              setCompanyName(event.company_name);
+              setOtherIndustry(event.company_industry ?? "other");
+            }
+            setCategory(event.category);
+            say(
+              "karen",
+              `So ${event.company_name} got you too — "${event.title}." ` +
+                `Here's the good news: ${event.entitlement} ` +
+                `Tell me how it hit you — dates, account or confirmation ` +
+                `numbers, and what it cost you.`,
+            );
+            setPhase("details");
+            return;
+          } catch {
+            // Event missing or unpublished — fall through to normal intake.
+          }
+        }
         say(
           "karen",
           "Hi, I'm Karen. Tell me what happened and I'll take it from here. Which company wronged you?",
@@ -350,11 +385,20 @@ export function GuidedIntake() {
     setError(null);
     setBusy(true);
     say("you", description.trim());
+    // Case description carries the public-event context so the agent can
+    // cite the incident and its published entitlement.
+    const fullDescription =
+      eventContext === null
+        ? description.trim()
+        : `${description.trim()}\n\nContext: part of the public event ` +
+          `"${eventContext.title}" (${eventContext.company_name}, ` +
+          `${eventContext.event_date}). Published entitlement: ` +
+          `${eventContext.entitlement}`;
     try {
       const created = await createCase({
         company_name: companyName,
         category: effectiveCategory,
-        description: description.trim(),
+        description: fullDescription,
         // Karen infers the amount from the story (and asks for a ballpark
         // only if she can't).
         requested_amount: null,
@@ -575,10 +619,23 @@ export function GuidedIntake() {
   // Known company: its claim types, then its industry's suggestions, then
   // the general assist-mode categories. Unknown company: the user-picked
   // industry's suggestions plus the general ones. Deduplicated by key.
-  const categoryOptions =
+  const baseCategoryOptions =
     selectedCompany !== null
       ? optionsForCompany(selectedCompany, catalog)
       : optionsForIndustry(otherIndustry, catalog);
+  // An event-driven intake pins the event's claim type even when the
+  // catalog doesn't list it for this company.
+  const categoryOptions =
+    eventContext !== null &&
+    !baseCategoryOptions.some((option) => option.key === eventContext.category)
+      ? [
+          {
+            key: eventContext.category,
+            label: categoryLabel(eventContext.category, catalog),
+          },
+          ...baseCategoryOptions,
+        ]
+      : baseCategoryOptions;
 
   // A named tile only shows when it has at least one company; "Something
   // else" always shows (it also carries the free-text path).

@@ -208,3 +208,57 @@ export function deactivateChannel(
     method: "POST",
   });
 }
+
+// ---------------------------------------------------------------------------
+// Claimable events (research drafts -> publish/reject)
+// ---------------------------------------------------------------------------
+
+export interface AdminClaimEvent {
+  id: string;
+  company_name: string;
+  title: string;
+  event_date: string;
+  region: string | null;
+  summary: string;
+  entitlement: string;
+  eligibility: string;
+  how_to_claim: string;
+  claim_deadline: string | null;
+  category: string;
+  source_urls: string[];
+  status: string;
+  created_by: string;
+  research_notes: string | null;
+  created_at: string;
+}
+
+export function listAdminEvents(
+  token: string,
+  status: "draft" | "published" | "rejected" | "all" = "draft",
+): Promise<AdminClaimEvent[]> {
+  return adminRequest(token, `/admin/events?status=${status}`);
+}
+
+export function publishEvent(
+  token: string,
+  eventId: string,
+): Promise<AdminClaimEvent> {
+  return adminRequest(token, `/admin/events/${eventId}/publish`, {
+    method: "POST",
+  });
+}
+
+export function rejectEvent(
+  token: string,
+  eventId: string,
+): Promise<AdminClaimEvent> {
+  return adminRequest(token, `/admin/events/${eventId}/reject`, {
+    method: "POST",
+  });
+}
+
+export function runEventResearch(
+  token: string,
+): Promise<{ created: number; skipped: number; proposed: number }> {
+  return adminRequest(token, "/admin/events/research", { method: "POST" });
+}

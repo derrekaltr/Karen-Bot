@@ -21,13 +21,18 @@ import {
   listAdminCases,
   deactivateChannel,
   listChannels,
+  listAdminEvents,
   pauseCase,
+  publishEvent,
+  rejectEvent,
   resumeCase,
+  runEventResearch,
   setKillSwitch,
   storeAdminToken,
   verifyChannel,
   type AdminCase,
   type AdminChannel,
+  type AdminClaimEvent,
   type AdminMetrics,
   type InterventionItem,
   type InterventionKind,
@@ -284,6 +289,116 @@ function ChannelsSection({
 // Intervention queue
 // ---------------------------------------------------------------------------
 
+function EventsSection({
+  events,
+  busyEventId,
+  researching,
+  researchResult,
+  onPublish,
+  onReject,
+  onResearch,
+}: {
+  events: AdminClaimEvent[];
+  busyEventId: string | null;
+  researching: boolean;
+  researchResult: string | null;
+  onPublish: (id: string) => void;
+  onReject: (id: string) => void;
+  onResearch: () => void;
+}) {
+  return (
+    <section aria-label="Claimable events">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-base font-semibold tracking-tight">
+          Claimable events — drafts awaiting review ({events.length})
+        </h2>
+        <Button
+          variant="secondary"
+          disabled={researching}
+          onClick={onResearch}
+          className="min-h-9 px-4 py-2 text-xs"
+        >
+          {researching ? "Karen is researching…" : "Research now"}
+        </Button>
+      </div>
+      {researchResult !== null && (
+        <p className="mt-2 text-xs text-ink-600">{researchResult}</p>
+      )}
+      {events.length === 0 ? (
+        <p className="mt-3 text-sm text-ink-400">
+          No drafts waiting. Run research to look for new public events.
+        </p>
+      ) : (
+        <ul className="mt-3 flex flex-col gap-4">
+          {events.map((event) => (
+            <li key={event.id}>
+              <Card>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-bold">
+                    {event.company_name}
+                  </span>
+                  <span className="text-xs text-ink-400">
+                    {event.event_date}
+                    {event.region !== null ? ` — ${event.region}` : ""}
+                  </span>
+                  <span className="rounded-full border-[1.5px] border-black bg-face-100 px-2 py-0.5 text-xs font-bold text-ink-600">
+                    {humanize(event.category)}
+                  </span>
+                </div>
+                <h3 className="mt-1 text-base font-bold">{event.title}</h3>
+                <p className="mt-1 text-sm leading-relaxed text-ink-600">
+                  {event.summary}
+                </p>
+                <p className="mt-1 text-sm font-bold text-money-700">
+                  {event.entitlement}
+                </p>
+                <p className="mt-1 text-xs text-ink-600">
+                  Qualifies: {event.eligibility} — Claim: {event.how_to_claim}
+                </p>
+                {event.research_notes !== null && (
+                  <p className="mt-1 text-xs text-ink-400">
+                    Researcher notes: {event.research_notes}
+                  </p>
+                )}
+                <ul className="mt-2 flex flex-col gap-0.5">
+                  {event.source_urls.map((url) => (
+                    <li key={url}>
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs break-all text-accent-600 underline"
+                      >
+                        {url}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-3 flex gap-3">
+                  <Button
+                    disabled={busyEventId !== null}
+                    onClick={() => onPublish(event.id)}
+                  >
+                    Publish
+                  </Button>
+                  <Button
+                    variant="danger"
+                    disabled={busyEventId !== null}
+                    onClick={() => onReject(event.id)}
+                  >
+                    Reject
+                  </Button>
+                </div>
+              </Card>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+
 function KindBadge({ kind }: { kind: InterventionKind }) {
   const tone = RED_KINDS.has(kind)
     ? "bg-red-100 text-red-700"
@@ -491,6 +606,10 @@ export function AdminConsole() {
   );
   const [channels, setChannels] = useState<AdminChannel[] | null>(null);
   const [busyChannelId, setBusyChannelId] = useState<string | null>(null);
+  const [events, setEvents] = useState<AdminClaimEvent[] | null>(null);
+  const [busyEventId, setBusyEventId] = useState<string | null>(null);
+  const [researching, setResearching] = useState(false);
+  const [researchResult, setResearchResult] = useState<string | null>(null);
 
   const [loadError, setLoadError] = useState<string | null>(null);
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
@@ -525,18 +644,21 @@ export function AdminConsole() {
           casesResult,
           killSwitchResult,
           channelsResult,
+          eventsResult,
         ] = await Promise.all([
           getAdminMetrics(activeToken),
           getInterventionQueue(activeToken),
           listAdminCases(activeToken),
           getKillSwitch(activeToken),
           listChannels(activeToken),
+          listAdminEvents(activeToken, "draft"),
         ]);
         setMetrics(metricsResult);
         setQueue(queueResult);
         setCases(casesResult);
         setKillSwitchActive(killSwitchResult.kill_switch_active);
         setChannels(channelsResult);
+        setEvents(eventsResult);
         setLoadError(null);
       } catch (err) {
         if (err instanceof ApiError && err.status === 403) {
@@ -579,6 +701,51 @@ export function AdminConsole() {
         );
     } finally {
       setBusyChannelId(null);
+    }
+  }
+
+  async function handleEventAction(eventId: string, action: "publish" | "reject") {
+    if (token === null) return;
+    if (
+      action === "reject" &&
+      !window.confirm("Reject this event? It will never be shown to users.")
+    ) {
+      return;
+    }
+    setBusyEventId(eventId);
+    try {
+      if (action === "publish") await publishEvent(token, eventId);
+      else await rejectEvent(token, eventId);
+      await refresh(token);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) handleForbidden();
+      else
+        setLoadError(
+          err instanceof Error ? err.message : "Event action failed.",
+        );
+    } finally {
+      setBusyEventId(null);
+    }
+  }
+
+  async function handleResearch() {
+    if (token === null) return;
+    setResearching(true);
+    setResearchResult(null);
+    try {
+      const counts = await runEventResearch(token);
+      setResearchResult(
+        `Research done: ${counts.proposed} proposed, ${counts.created} new drafts, ${counts.skipped} skipped (duplicates or unusable).`,
+      );
+      await refresh(token);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) handleForbidden();
+      else
+        setResearchResult(
+          `Research failed: ${err instanceof Error ? err.message : "unknown error"}`,
+        );
+    } finally {
+      setResearching(false);
     }
   }
 
@@ -740,6 +907,17 @@ export function AdminConsole() {
                 onDeactivate={(id) =>
                   void handleChannelAction(id, "deactivate")
                 }
+              />
+            )}
+            {events !== null && (
+              <EventsSection
+                events={events}
+                busyEventId={busyEventId}
+                researching={researching}
+                researchResult={researchResult}
+                onPublish={(id) => void handleEventAction(id, "publish")}
+                onReject={(id) => void handleEventAction(id, "reject")}
+                onResearch={() => void handleResearch()}
               />
             )}
             <InterventionQueueSection items={queue} />

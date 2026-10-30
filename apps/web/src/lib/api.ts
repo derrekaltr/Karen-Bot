@@ -327,6 +327,36 @@ export function getCategoryCatalog(): Promise<CategoryCatalog> {
   return request("/categories");
 }
 
+/** A public incident where a published policy owes affected customers. */
+export interface ClaimEventSummary {
+  id: string;
+  company_name: string;
+  company_industry: string | null;
+  title: string;
+  /** ISO date (YYYY-MM-DD) the incident happened. */
+  event_date: string;
+  region: string | null;
+  entitlement: string;
+  category: string;
+  claim_deadline: string | null;
+}
+
+export interface ClaimEventDetail extends ClaimEventSummary {
+  summary: string;
+  eligibility: string;
+  how_to_claim: string;
+  source_urls: string[];
+}
+
+/** Published claimable events from the last `days` days, newest first. */
+export function listEvents(days = 7): Promise<ClaimEventSummary[]> {
+  return request(`/events?days=${days}`);
+}
+
+export function getEvent(eventId: string): Promise<ClaimEventDetail> {
+  return request(`/events/${eventId}`);
+}
+
 export function createCase(input: {
   company_name: string;
   category: string;

@@ -7,7 +7,12 @@ export const metadata: Metadata = {
   title: "New Case — KarenBot",
 };
 
-export default function NewCasePage() {
+export default async function NewCasePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ event?: string }>;
+}) {
+  const { event } = await searchParams;
   return (
     <div className="min-h-dvh">
       <AppHeader
@@ -29,7 +34,7 @@ export default function NewCasePage() {
           Tell Karen what happened — she&apos;ll walk you through it.
         </p>
         <div className="mt-8">
-          <GuidedIntake />
+          <GuidedIntake eventId={event ?? null} />
         </div>
       </main>
     </div>
