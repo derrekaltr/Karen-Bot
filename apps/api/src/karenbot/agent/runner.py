@@ -46,6 +46,22 @@ from karenbot.policy.context import build_case_context
 from karenbot.policy.engine import PolicyDecision, evaluate
 from karenbot.workflows import executor
 
+# Categories whose cases are instructions (cancel/negotiate a bill) rather
+# than compensation claims; drafting and resolution differ. Mirrors
+# discovery.service ACTION_CATEGORIES (string literals to avoid an import
+# cycle).
+CANCELLATION_CATEGORY = "subscription_cancellation"
+BILL_NEGOTIATION_CATEGORY = "bill_negotiation"
+
+
+def case_intent(case: "Case") -> str:
+    if case.category == CANCELLATION_CATEGORY:
+        return "cancellation"
+    if case.category == BILL_NEGOTIATION_CATEGORY:
+        return "bill_negotiation"
+    return "recovery"
+
+
 # Deterministic negotiation rule: accept offers at or above this fraction of
 # the requested amount; counter below it.
 ACCEPT_RATIO = Decimal("0.8")
@@ -102,6 +118,7 @@ class AgentRuntime:
         return {
             "company": case.company.name,
             "category": case.category,
+            "case_intent": case_intent(case),
             "claim_type": case.category,
             "description": case.description,
             "incident_summary": (case.facts or {}).get("incident_summary", case.description),
@@ -296,7 +313,10 @@ class AgentRuntime:
         elif kind == "denial":
             self._handle_denial(session, case, version)
         elif kind == "acceptance_confirmation":
-            self._mark_company_confirmed(session, case)
+            if case_intent(case) == "cancellation":
+                self._complete_cancellation(session, case)
+            else:
+                self._mark_company_confirmed(session, case)
         elif kind == "third_party_refusal":
             self._enter_respect_the_refusal_mode(session, case, version)
         # acknowledgement / other: wait; the scheduler owns follow-up timing.
@@ -487,6 +507,50 @@ class AgentRuntime:
         )
         _, decision = self._propose(session, action, prompt_version=version)
         return decision
+
+    def _complete_cancellation(self, session: Session, case: Case) -> None:
+        """Company confirmed the cancellation in writing. Record the outcome
+        (annual savings when a linked recurring charge exists) and hand the
+        case to the customer to verify the billing actually stopped."""
+        from karenbot.domain.models import RecurringCharge
+
+        charge = session.scalars(
+            select(RecurringCharge).where(RecurringCharge.case_id == case.id)
+        ).first()
+        amount = None
+        currency = case.currency
+        if charge is not None:
+            multiplier = {"weekly": 52, "monthly": 12, "yearly": 1}.get(charge.cadence, 12)
+            amount = charge.amount * multiplier
+            currency = charge.currency
+        session.add(
+            RecoveryOutcome(
+                case_id=case.id,
+                recovery_type="subscription_savings",
+                amount=amount,
+                currency=currency,
+                binding=True,
+                verification_status="company_confirmed",
+            )
+        )
+        transition(
+            session,
+            case,
+            CaseEvent.CANCELLATION_CONFIRMED,
+            actor_type=ActorType.AGENT,
+            payload={"annual_savings": str(amount) if amount is not None else None},
+        )
+
+    def decline_pending_offer(self, session: Session, case: Case) -> PolicyDecision:
+        """After the customer declines an offer (e.g. a retention deal on a
+        cancellation case), tell the company and restate the demand."""
+        return self._send_follow_up(
+            session,
+            case,
+            "customer_decision",
+            note="customer_declined_offer_reassert_request",
+            counter_amount=case.requested_amount,
+        )
 
     def _mark_company_confirmed(self, session: Session, case: Case) -> None:
         outcome = session.scalars(

@@ -102,6 +102,29 @@ class ScriptedClient:
             f"I am writing on behalf of {customer}, who has authorized this correspondence."
         )
         signoff = ctx.get("signoff") or f"Authorized representative for {customer}"
+        if ctx.get("case_intent") == "cancellation" and not ctx.get("acceptance_amount"):
+            declined = (
+                "The customer has declined that offer. Please proceed with the "
+                "cancellation as originally requested.\n\n"
+                if ctx.get("is_follow_up")
+                else ""
+            )
+            body = (
+                f"Hello {company} support,\n\n"
+                f"On behalf of {customer}, please cancel the subscription "
+                f"described below, effective immediately (or at the end of the "
+                f"current billing period if immediate cancellation is not "
+                f"possible).\n\n{facts_lines}\n\n{declined}"
+                f"Please confirm the cancellation in writing, including the "
+                f"final billing date, and refund any charge made after this "
+                f"request. We are not seeking a retention offer.\n\n"
+                f"{disclosure}\n\n"
+                f"Kind regards,\n{signoff}"
+            )
+            return EmailDraft(
+                subject=f"Cancellation request — written confirmation requested ({company})",
+                body=body,
+            )
         if ctx.get("acceptance_amount"):
             accepted = f"{currency} {ctx['acceptance_amount']}"
             subject = f"Re: {claim.replace('_', ' ').title()} — offer accepted"
@@ -221,6 +244,12 @@ class ScriptedClient:
             lowered,
         ):
             kind = "third_party_refusal"
+        elif re.search(
+            r"((subscription|service|account|membership)[^.]{0,60}(has been|have been|is|was) cancell?ed"
+            r"|cancell?ation (is |has been )?(complete|confirmed|processed))",
+            lowered,
+        ):
+            kind = "acceptance_confirmation"
         elif re.search(r"(has been (approved|issued|processed)|refund (was|has been) sent)", lowered) and amount:
             kind = "acceptance_confirmation"
         elif re.search(r"(we can offer|offer you|willing to (provide|refund)|as a goodwill)", lowered):

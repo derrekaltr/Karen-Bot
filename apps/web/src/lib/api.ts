@@ -446,6 +446,12 @@ export function listApprovals(caseId: string): Promise<Approval[]> {
   return request(`/cases/${caseId}/approvals`);
 }
 
+export function denyAction(
+  actionId: string,
+): Promise<{ status: CaseStatus; follow_up_queued: boolean }> {
+  return request(`/approvals/${actionId}/deny`, { method: "POST" });
+}
+
 export function approveAction(
   actionId: string,
 ): Promise<{ status: CaseStatus }> {

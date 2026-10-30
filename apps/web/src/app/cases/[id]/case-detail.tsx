@@ -9,6 +9,7 @@ import {
   PERSONAS,
   TERMINAL_STATUSES,
   approveAction,
+  denyAction,
   authorizeCase,
   confirmRecovery,
   devTick,
@@ -412,14 +413,27 @@ export function CaseDetail({ caseId }: { caseId: string }) {
                     {approval.policy_reasons.join("; ")}
                   </p>
                 )}
-                <div className="mt-3">
+                <div className="mt-3 flex flex-wrap gap-3">
                   <Button
                     disabled={busy}
                     onClick={() =>
                       void runAction(() => approveAction(approval.id))
                     }
                   >
-                    Approve
+                    {approval.action_type === "accept_offer"
+                      ? "Take the offer"
+                      : "Approve"}
+                  </Button>
+                  <Button
+                    variant="danger"
+                    disabled={busy}
+                    onClick={() =>
+                      void runAction(() => denyAction(approval.id))
+                    }
+                  >
+                    {caseRecord.category === "subscription_cancellation"
+                      ? "No deal — keep canceling"
+                      : "Decline — keep pushing"}
                   </Button>
                 </div>
               </li>
@@ -548,7 +562,9 @@ export function CaseDetail({ caseId }: { caseId: string }) {
             disabled={busy}
             onClick={() => void runAction(() => confirmRecovery(caseId))}
           >
-            I received the money
+            {caseRecord.category === "subscription_cancellation"
+              ? "Confirmed — the billing stopped"
+              : "I received the money"}
           </Button>
         )}
         {!isTerminal && (

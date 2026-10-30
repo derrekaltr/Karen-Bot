@@ -683,6 +683,31 @@ def approve(
     return {"status": case.status, "acceptance_queued": acceptance_queued}
 
 
+@app.post("/approvals/{action_id}/deny")
+def deny(
+    action_id: uuid.UUID,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Customer declines the proposed action (retention offer, settlement…).
+    Karen tells the company and restates the original request."""
+    row = db.get(AgentAction, action_id)
+    if row is None:
+        raise HTTPException(404, "action not found")
+    case = _owned_case(db, row.case_id, user)
+    if row.execution_status != ExecutionStatus.AWAITING_APPROVAL.value:
+        raise HTTPException(409, "action is not awaiting approval")
+    try:
+        services.deny_action(db, row, case)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    follow_up_queued = False
+    if case.contact_mode == "agent":
+        decision = _runtime.decline_pending_offer(db, case)
+        follow_up_queued = decision.allowed
+    return {"status": case.status, "follow_up_queued": follow_up_queued}
+
+
 @app.post("/cases/{case_id}/confirm-recovery")
 def confirm_recovery(
     case_id: uuid.UUID,

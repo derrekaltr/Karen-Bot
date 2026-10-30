@@ -47,6 +47,9 @@ TRANSITION_TABLE: dict[tuple[CaseStatus, CaseEvent], CaseStatus] = {
     (CaseStatus.NEGOTIATING, CaseEvent.OFFER_MADE): CaseStatus.OFFER_RECEIVED,
     (CaseStatus.OFFER_RECEIVED, CaseEvent.OFFER_DECLINED): CaseStatus.NEGOTIATING,
     (CaseStatus.OFFER_RECEIVED, CaseEvent.OFFER_ACCEPTED): CaseStatus.VERIFYING_RECOVERY,
+    # Cancellation cases: the company confirms in writing; the customer then
+    # verifies the billing actually stopped.
+    (CaseStatus.NEGOTIATING, CaseEvent.CANCELLATION_CONFIRMED): CaseStatus.VERIFYING_RECOVERY,
     (CaseStatus.OFFER_RECEIVED, CaseEvent.APPROVAL_REQUESTED): CaseStatus.AWAITING_CUSTOMER_APPROVAL,
     (CaseStatus.NEGOTIATING, CaseEvent.APPROVAL_REQUESTED): CaseStatus.AWAITING_CUSTOMER_APPROVAL,
     (CaseStatus.AWAITING_CUSTOMER_APPROVAL, CaseEvent.APPROVAL_GRANTED): CaseStatus.VERIFYING_RECOVERY,

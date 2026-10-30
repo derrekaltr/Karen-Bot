@@ -12,8 +12,8 @@ PROMPTS_DIR = Path(__file__).parent
 # Pinned current version per task. Bump deliberately.
 CURRENT_VERSIONS: dict[str, int] = {
     "intake_extract": 1,
-    "draft_email": 2,
-    "draft_follow_up": 2,
+    "draft_email": 3,
+    "draft_follow_up": 3,
     "draft_for_customer": 1,
     "interpret_reply": 1,
     "research_events": 1,

@@ -182,8 +182,8 @@ export function Subscriptions() {
 
       {connections.length === 0 ? (
         /* Hero — no bank linked yet */
-        <Card className="flex flex-col items-start gap-4 border-accent-100 bg-accent-50/60 p-8">
-          <h2 className="text-2xl font-bold tracking-tight">
+        <Card className="flex flex-col items-start gap-4 bg-face-100 p-8">
+          <h2 className="font-display text-2xl tracking-tight">
             Find bills you forgot you were paying
           </h2>
           <p className="max-w-xl text-sm leading-relaxed text-ink-600">
@@ -210,15 +210,15 @@ export function Subscriptions() {
             {connections.map((connection) => (
               <span
                 key={connection.id}
-                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 py-1.5 pr-1.5 pl-3.5 text-sm"
+                className="inline-flex items-center gap-2 rounded-full border-2 border-black bg-white py-1.5 pr-1.5 pl-3.5 text-sm"
               >
-                <span className="font-medium">
+                <span className="font-bold">
                   {connection.institution_name ?? connection.provider}
                 </span>
                 <button
                   type="button"
                   onClick={() => void disconnect(connection)}
-                  className="rounded-full px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50"
+                  className="rounded-full px-2.5 py-1 text-xs font-bold text-accent-600 hover:bg-accent-50"
                 >
                   Disconnect
                 </button>
@@ -235,8 +235,8 @@ export function Subscriptions() {
 
           {/* Summary bar */}
           {active.length > 0 && (
-            <div className="rounded-xl bg-accent-600 px-5 py-4 text-white">
-              <p className="text-sm font-semibold">
+            <div className="rounded-xl border-2 border-black bg-accent-500 px-5 py-4 text-white shadow-[4px_4px_0_0_#000]">
+              <p className="font-display text-base">
                 {active.length} recurring{" "}
                 {active.length === 1 ? "charge" : "charges"} ≈{" "}
                 {formatAmount(
@@ -267,12 +267,12 @@ export function Subscriptions() {
                     <Card>
                       <div className="flex flex-wrap items-start justify-between gap-4">
                         <div>
-                          <h3 className="text-base font-semibold">
+                          <h3 className="text-base font-bold">
                             {sub.merchant_name}
                           </h3>
                           <p className="mt-1 text-sm text-ink-600">
                             {amount}
-                            {CADENCE_LABELS[sub.cadence]} ·{" "}
+                            {CADENCE_LABELS[sub.cadence]} —{" "}
                             <span className="font-bold text-ink-900">
                               ≈ {yearly}/yr
                             </span>
@@ -281,7 +281,7 @@ export function Subscriptions() {
                             Seen {sub.occurrences}{" "}
                             {sub.occurrences === 1 ? "time" : "times"}
                             {sub.last_seen !== null
-                              ? ` · last on ${new Date(
+                              ? ` — last on ${new Date(
                                   sub.last_seen,
                                 ).toLocaleDateString()}`
                               : ""}
@@ -289,16 +289,21 @@ export function Subscriptions() {
                         </div>
                         {sub.status === "case_created" &&
                           sub.case_id !== null && (
-                            <Link
-                              href={`/cases/${sub.case_id}`}
-                              className="text-sm font-semibold text-accent-600 hover:text-accent-700"
-                            >
-                              View case →
-                            </Link>
+                            <span className="inline-flex items-center gap-2">
+                              <span className="rounded-full border-[1.5px] border-black bg-bob-100 px-2.5 py-0.5 text-xs font-bold">
+                                Karen is on it
+                              </span>
+                              <Link
+                                href={`/cases/${sub.case_id}`}
+                                className="text-sm font-bold text-accent-600 underline"
+                              >
+                                View case
+                              </Link>
+                            </span>
                           )}
                         {sub.status === "canceled" && (
-                          <span className="rounded-full bg-accent-50 px-3 py-1 text-xs font-semibold text-accent-700">
-                            Canceled
+                          <span className="rounded-full border-[1.5px] border-black bg-money-100 px-3 py-1 text-xs font-bold text-money-700">
+                            Canceled — saving ≈ {yearly}/yr
                           </span>
                         )}
                       </div>
@@ -343,11 +348,11 @@ export function Subscriptions() {
 
           {/* Dismissed */}
           {dismissed.length > 0 && (
-            <details className="rounded-xl border border-slate-200 bg-slate-50">
-              <summary className="cursor-pointer px-5 py-3 text-sm font-medium text-ink-400">
+            <details className="rounded-xl border-2 border-black bg-face-100">
+              <summary className="cursor-pointer px-5 py-3 text-sm font-bold text-ink-600">
                 Dismissed ({dismissed.length})
               </summary>
-              <ul className="border-t border-slate-200 px-5 py-3">
+              <ul className="border-t-2 border-dashed border-black px-5 py-3">
                 {dismissed.map((sub) => (
                   <li
                     key={sub.id}

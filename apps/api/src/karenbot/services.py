@@ -241,6 +241,25 @@ def approve_action(session: Session, action_row: AgentAction) -> None:
     executor.approve_and_execute(session, action_row, action)
 
 
+def deny_action(session: Session, action_row: AgentAction, case: Case) -> None:
+    """Customer declines a NEEDS_APPROVAL action (e.g. a retention offer on a
+    cancellation case, or a lowball settlement). The case returns to
+    NEGOTIATING; the caller decides whether a follow-up goes out."""
+    if action_row.execution_status != ExecutionStatus.AWAITING_APPROVAL.value:
+        raise ValueError(f"action is not awaiting approval: {action_row.execution_status}")
+    action_row.execution_status = ExecutionStatus.DENIED.value
+    session.add(
+        AuditEvent(
+            actor_type=ActorType.CUSTOMER.value,
+            actor_id=str(case.user_id),
+            case_id=case.id,
+            event_type="approval.denied",
+            event_payload={"agent_action_id": str(action_row.id)},
+        )
+    )
+    transition(session, case, CaseEvent.APPROVAL_DENIED, actor_type=ActorType.CUSTOMER)
+
+
 def confirm_recovery_received(session: Session, case: Case) -> None:
     """Customer confirms funds/credit actually arrived; close the case."""
     outcome = session.scalars(
@@ -261,6 +280,16 @@ def confirm_recovery_received(session: Session, case: Case) -> None:
             event_payload={"outcome_id": str(outcome.id)},
         )
     )
+    # Cancellation cases: "verified" means the billing stopped — reflect it
+    # on the linked recurring charge so the subscriptions page shows it.
+    if case.category == "subscription_cancellation":
+        from karenbot.domain.models import RecurringCharge
+
+        charge = session.scalars(
+            select(RecurringCharge).where(RecurringCharge.case_id == case.id)
+        ).first()
+        if charge is not None:
+            charge.status = "canceled"
     close = CloseCase(
         case_id=case.id,
         purpose="recovery_verified_by_customer",
