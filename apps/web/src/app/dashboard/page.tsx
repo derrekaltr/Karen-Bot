@@ -13,7 +13,7 @@ const navItems = [
   { label: "New Case", href: "/cases/new" },
   { label: "What's owed", href: "/events" },
   { label: "Subscriptions", href: "/subscriptions" },
-  { label: "Connected Accounts", href: "/dashboard" },
+  { label: "Connected Accounts", href: "/accounts" },
   { label: "Billing", href: "/dashboard" },
   { label: "Settings", href: "/dashboard" },
 ] as const;

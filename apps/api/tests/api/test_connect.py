@@ -132,7 +132,8 @@ def test_oauth_callback_stores_encrypted_tokens(db, monkeypatch):
     state = connect.make_oauth_state(dana_id, "gmail")
     r = client.get(f"/connect-test/gmail/callback?code=auth-code&state={state}")
     assert r.status_code == 200, r.text
-    assert r.json()["connected"] == "dana@gmail.example"
+    # The callback is a human landing page now, not JSON.
+    assert "dana@gmail.example" in r.text and "Connected" in r.text
 
     from sqlalchemy import select
 

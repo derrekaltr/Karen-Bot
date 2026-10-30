@@ -359,6 +359,30 @@ export function getEvent(eventId: string): Promise<ClaimEventDetail> {
   return request(`/events/${eventId}`);
 }
 
+/** A connected email account (Gmail now; Outlook/IMAP later). */
+export interface ConnectedAccount {
+  id: string;
+  provider: string;
+  provider_account_id: string;
+  status: string;
+  created_at: string;
+}
+
+export function listConnectedAccounts(): Promise<ConnectedAccount[]> {
+  return request("/connect/accounts");
+}
+
+/** Returns the provider's consent URL; the browser navigates there. */
+export function startConnect(provider: string): Promise<{ auth_url: string }> {
+  return request(`/connect/${provider}/start`);
+}
+
+export function revokeConnectedAccount(
+  accountId: string,
+): Promise<{ status: string }> {
+  return request(`/connect/accounts/${accountId}/revoke`, { method: "POST" });
+}
+
 /** A company on the user's "uses" profile (powers affects-you matching). */
 export interface UserCompany {
   id: string;

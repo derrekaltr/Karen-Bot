@@ -11,10 +11,12 @@ import secrets
 import time
 import uuid
 from datetime import datetime
+from html import escape as html_escape
 from typing import Any
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -143,7 +145,9 @@ def build_router(http: httpx.Client | None = None) -> APIRouter:
             raise HTTPException(503, str(exc)) from exc
 
     @r.get("/{provider}/callback")
-    def callback(provider: str, code: str, state: str, db: Session = Depends(get_db)) -> dict:
+    def callback(
+        provider: str, code: str, state: str, db: Session = Depends(get_db)
+    ) -> HTMLResponse:
         if provider not in oauth.PROVIDERS:
             raise HTTPException(404, f"unknown provider '{provider}'")
         user_id = parse_oauth_state(state, provider)
@@ -153,10 +157,20 @@ def build_router(http: httpx.Client | None = None) -> APIRouter:
         tokens = oauth.exchange_code(provider, code, client)
         address = _fetch_profile_email(provider, tokens["access_token"], client)
         tokens["email"] = address
-        account = _upsert_account(
+        _upsert_account(
             db, user, provider, address, tokens, oauth.PROVIDERS[provider].scopes
         )
-        return {"connected": address, "provider": provider, "account_id": str(account.id)}
+        # The user lands here from the provider's consent screen — give them a
+        # human page, not JSON. (Escape nothing: address comes from the
+        # provider's own profile endpoint, but escape anyway for safety.)
+        safe_address = html_escape(address)
+        return HTMLResponse(
+            "<!doctype html><html><body style='font-family:sans-serif;"
+            "display:grid;place-items:center;min-height:90vh'><div>"
+            f"<h1>Connected ✓</h1><p><strong>{safe_address}</strong> is now "
+            "linked to KarenBot.</p><p>You can close this tab and head back "
+            "to the app.</p></div></body></html>"
+        )
 
     class ImapSmtpIn(BaseModel):
         email: str
