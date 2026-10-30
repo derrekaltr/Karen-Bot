@@ -9,7 +9,7 @@ Design rules:
 """
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -408,6 +408,42 @@ class RecurringCharge(TimestampMixin, Base):
             "user_id", "normalized_merchant", "cadence", name="uq_recurring_user_merchant"
         ),
     )
+
+
+class ClaimEvent(TimestampMixin, Base):
+    """A public incident (outage, disruption, recall) where a published
+    policy owes affected customers something.
+
+    Produced by the research agent as a draft; a human publishes or rejects
+    it in /admin before it is ever shown to users. Published events feed the
+    public /events page, and "I was affected" starts a prefilled case.
+    """
+
+    __tablename__ = "claim_events"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    company_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("companies.id"))
+    # Kept even when company_id is set: events may name companies we have
+    # no row for yet.
+    company_name: Mapped[str] = mapped_column(String(200))
+    title: Mapped[str] = mapped_column(String(300))
+    summary: Mapped[str] = mapped_column(Text)  # what happened
+    event_date: Mapped[date] = mapped_column(sa.Date)
+    region: Mapped[str | None] = mapped_column(String(120))
+    entitlement: Mapped[str] = mapped_column(Text)  # what affected customers get
+    eligibility: Mapped[str] = mapped_column(Text)  # who qualifies
+    how_to_claim: Mapped[str] = mapped_column(Text)
+    claim_deadline: Mapped[date | None] = mapped_column(sa.Date)
+    # Claim-type key used to prefill intake, e.g. "outage_credit".
+    category: Mapped[str] = mapped_column(String(80))
+    # The verified policy record backing the entitlement, when we have one.
+    policy_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("company_policies.id"))
+    source_urls: Mapped[list[str]] = mapped_column(JSONVariant, default=list)
+    # draft -> (published | rejected); published -> archived.
+    status: Mapped[str] = mapped_column(String(20), default="draft")
+    created_by: Mapped[str] = mapped_column(String(40))  # research_agent | admin | seed
+    # Researcher caveats for the human reviewer. Never exposed publicly.
+    research_notes: Mapped[str | None] = mapped_column(Text)
 
 
 class SystemControl(TimestampMixin, Base):

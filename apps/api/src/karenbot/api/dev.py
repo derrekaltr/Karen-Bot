@@ -308,6 +308,69 @@ def _seed_tier1_policies(session) -> None:
             )
 
 
+def _seed_demo_events(session) -> None:
+    """Two clearly-labeled DEMO claim events so the /events page has content
+    in a fresh sandbox. Real events only ever enter as research-agent drafts
+    that a human publishes — never seeded."""
+    from datetime import timedelta
+
+    from karenbot.domain.models import ClaimEvent
+
+    if session.scalars(select(ClaimEvent)).first() is not None:
+        return
+    today = datetime.now(UTC).date()
+    acme = session.scalars(select(Company).where(Company.name == "Acme Air")).first()
+    session.add(
+        ClaimEvent(
+            company_id=acme.id if acme else None,
+            company_name="Acme Air",
+            title="Demo: nationwide ground stop canceled 1,200 flights",
+            summary=(
+                "Demo data. A systems failure grounded Acme Air's fleet for six "
+                "hours; flights were canceled through the evening."
+            ),
+            event_date=today - timedelta(days=1),
+            region="US",
+            entitlement=(
+                "A cash refund to your original payment for any canceled flight "
+                "you didn't take — a voucher is not a refund."
+            ),
+            eligibility="Anyone whose Acme Air flight was canceled that day.",
+            how_to_claim="Request the refund via Acme Air's website; no form fee.",
+            claim_deadline=None,
+            category="flight_cancellation_refund",
+            source_urls=["https://example.com/demo-ground-stop"],
+            status="published",
+            created_by="seed",
+        )
+    )
+    att = session.scalars(select(Company).where(Company.name == "AT&T")).first()
+    session.add(
+        ClaimEvent(
+            company_id=att.id if att else None,
+            company_name="AT&T",
+            title="Demo: regional fiber outage, 4 hours",
+            summary=(
+                "Demo data. A fiber cut knocked out home internet across several "
+                "metro areas for about four hours."
+            ),
+            event_date=today - timedelta(days=2),
+            region="Southeast US",
+            entitlement="A full day's bill credit under the AT&T Guarantee.",
+            eligibility="Fiber customers in the affected metros during the outage.",
+            how_to_claim=(
+                "AT&T emails affected customers a redemption link — click it "
+                "within 30 days."
+            ),
+            claim_deadline=today + timedelta(days=28),
+            category="outage_credit",
+            source_urls=["https://example.com/demo-fiber-outage"],
+            status="published",
+            created_by="seed",
+        )
+    )
+
+
 def _seed_research_channels(session, company, existing_addresses) -> None:
     """Load researched real-world channels as UNVERIFIED rows (policy engine
     refuses to send until a human verifies each in the admin console)."""
@@ -427,6 +490,7 @@ def build_router(
                             )
                         )
             _seed_tier1_policies(session)
+            _seed_demo_events(session)
             session.commit()
         return SeedOut(user_email=DEMO_EMAIL, companies=names)
 

@@ -9,7 +9,8 @@ the browser with no external services.
 import logging
 import uuid
 from collections.abc import Iterator
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
+from datetime import date as datetime_date
 from decimal import Decimal
 from typing import Any
 
@@ -30,6 +31,7 @@ from karenbot.domain.models import (
     AgentAction,
     AuditEvent,
     Case,
+    ClaimEvent,
     Communication,
     Company,
     User,
@@ -172,6 +174,79 @@ def general_categories() -> dict:
         },
         "industries": category_catalog.KNOWN_INDUSTRIES,
     }
+
+
+# --------------------------------------------------------------------------
+# Claimable events (public feed)
+# --------------------------------------------------------------------------
+
+
+class ClaimEventSummaryOut(BaseModel):
+    id: uuid.UUID
+    company_name: str
+    company_industry: str | None
+    title: str
+    event_date: datetime_date
+    region: str | None
+    entitlement: str
+    category: str
+    claim_deadline: datetime_date | None
+
+
+class ClaimEventDetailOut(ClaimEventSummaryOut):
+    summary: str
+    eligibility: str
+    how_to_claim: str
+    source_urls: list[str]
+
+
+def _event_out(event: ClaimEvent, db: Session, detail: bool) -> dict[str, Any]:
+    industry = None
+    if event.company_id is not None:
+        company = db.get(Company, event.company_id)
+        industry = company.industry if company else None
+    out: dict[str, Any] = {
+        "id": event.id,
+        "company_name": event.company_name,
+        "company_industry": industry,
+        "title": event.title,
+        "event_date": event.event_date,
+        "region": event.region,
+        "entitlement": event.entitlement,
+        "category": event.category,
+        "claim_deadline": event.claim_deadline,
+    }
+    if detail:
+        out.update(
+            summary=event.summary,
+            eligibility=event.eligibility,
+            how_to_claim=event.how_to_claim,
+            source_urls=event.source_urls or [],
+        )
+    return out
+
+
+@app.get("/events", response_model=list[ClaimEventSummaryOut])
+def list_events(
+    days: int = 7, db: Session = Depends(get_db)
+) -> list[dict[str, Any]]:
+    """Published claimable events from the last `days` days, newest first."""
+    days = max(1, min(days, 31))
+    cutoff = datetime.now(UTC).date() - timedelta(days=days)
+    events = db.scalars(
+        select(ClaimEvent)
+        .where(ClaimEvent.status == "published", ClaimEvent.event_date >= cutoff)
+        .order_by(ClaimEvent.event_date.desc(), ClaimEvent.created_at.desc())
+    ).all()
+    return [_event_out(e, db, detail=False) for e in events]
+
+
+@app.get("/events/{event_id}", response_model=ClaimEventDetailOut)
+def get_event(event_id: uuid.UUID, db: Session = Depends(get_db)) -> dict[str, Any]:
+    event = db.get(ClaimEvent, event_id)
+    if event is None or event.status != "published":
+        raise HTTPException(404, "event not found")
+    return _event_out(event, db, detail=True)
 
 
 # --------------------------------------------------------------------------

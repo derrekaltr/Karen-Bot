@@ -49,3 +49,32 @@ class ReplyInterpretation(BaseModel):
     # Set when the inbound content attempted to instruct the agent; such
     # content is flagged, never obeyed.
     suspected_injection: bool = False
+
+
+class ResearchedEvent(BaseModel):
+    """One public incident where a published policy owes affected customers.
+
+    Produced by the research_events task from web search results. Everything
+    here is a DRAFT for human review in /admin — never published directly.
+    """
+
+    company_name: str
+    title: str
+    # ISO dates as strings so the scripted client and web-derived output
+    # share one shape; the research service parses and validates them.
+    event_date: str
+    region: str | None = None
+    summary: str
+    entitlement: str
+    eligibility: str
+    how_to_claim: str
+    claim_deadline: str | None = None
+    # Claim-type key from our catalog, e.g. "outage_credit".
+    category: str
+    source_urls: list[str] = Field(default_factory=list)
+    confidence: Literal["high", "medium", "low"] = "medium"
+    notes: str | None = None
+
+
+class ResearchedEvents(BaseModel):
+    events: list[ResearchedEvent] = Field(default_factory=list)

@@ -13,7 +13,13 @@ from typing import TypeVar
 
 from pydantic import BaseModel
 
-from karenbot.agent.schemas import EmailDraft, IntakeResult, ReplyInterpretation
+from karenbot.agent.schemas import (
+    EmailDraft,
+    IntakeResult,
+    ReplyInterpretation,
+    ResearchedEvent,
+    ResearchedEvents,
+)
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -44,6 +50,8 @@ class ScriptedClient:
             result = self._draft_for_customer(context)
         elif task == "interpret_reply":
             result = self._interpret(context)
+        elif task == "research_events":
+            result = _scripted_research(context)
         else:
             raise ValueError(f"scripted client has no implementation for task {task}")
         return output_model.model_validate(result.model_dump())
@@ -239,3 +247,30 @@ class ScriptedClient:
             summary=body[:200],
             suspected_injection=suspected,
         )
+
+
+def _scripted_research(ctx: dict) -> ResearchedEvents:
+    """One deterministic canned event, dated inside the lookback window."""
+    from datetime import UTC, datetime, timedelta
+
+    event_date = (datetime.now(UTC) - timedelta(days=1)).date().isoformat()
+    deadline = (datetime.now(UTC) + timedelta(days=29)).date().isoformat()
+    return ResearchedEvents(
+        events=[
+            ResearchedEvent(
+                company_name="AT&T",
+                title="Scripted: regional fiber outage",
+                event_date=event_date,
+                region="Southeast US",
+                summary="A scripted multi-hour fiber outage used in tests.",
+                entitlement="A full day's bill credit under the AT&T Guarantee.",
+                eligibility="Fiber customers in the affected region during the outage.",
+                how_to_claim="Redeem via the link AT&T emails within 30 days.",
+                claim_deadline=deadline,
+                category="outage_credit",
+                source_urls=["https://example.com/scripted-outage"],
+                confidence="high",
+                notes="scripted fixture",
+            )
+        ]
+    )

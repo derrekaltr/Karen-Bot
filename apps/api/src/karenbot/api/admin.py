@@ -7,6 +7,7 @@ is audited with the admin id.
 
 import uuid
 from datetime import UTC, datetime, timedelta
+from datetime import date as datetime_date
 from decimal import Decimal
 from typing import Any
 
@@ -23,6 +24,7 @@ from karenbot.domain.models import (
     AgentAction,
     AuditEvent,
     Case,
+    ClaimEvent,
     Communication,
     Company,
     OutboxMessage,
@@ -345,3 +347,121 @@ def metrics(admin: str = Depends(require_admin), db: Session = Depends(get_db)) 
         "total_communications": int(total_messages or 0),
         "kill_switch_active": controls.kill_switch_active(db),
     }
+
+
+# ----------------------------------------------------------------------------
+# Claimable events: review the research agent's drafts, publish or reject.
+# ----------------------------------------------------------------------------
+
+
+class AdminEventOut(BaseModel):
+    id: uuid.UUID
+    company_name: str
+    title: str
+    event_date: datetime_date
+    region: str | None
+    summary: str
+    entitlement: str
+    eligibility: str
+    how_to_claim: str
+    claim_deadline: datetime_date | None
+    category: str
+    source_urls: list[str]
+    status: str
+    created_by: str
+    research_notes: str | None
+    created_at: datetime
+
+
+def _admin_event_out(event: ClaimEvent) -> AdminEventOut:
+    return AdminEventOut(
+        id=event.id,
+        company_name=event.company_name,
+        title=event.title,
+        event_date=event.event_date,
+        region=event.region,
+        summary=event.summary,
+        entitlement=event.entitlement,
+        eligibility=event.eligibility,
+        how_to_claim=event.how_to_claim,
+        claim_deadline=event.claim_deadline,
+        category=event.category,
+        source_urls=event.source_urls or [],
+        status=event.status,
+        created_by=event.created_by,
+        research_notes=event.research_notes,
+        created_at=event.created_at,
+    )
+
+
+@router.get("/events", response_model=list[AdminEventOut])
+def list_claim_events(
+    status: str = "draft",
+    admin: str = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> list[AdminEventOut]:
+    query = select(ClaimEvent).order_by(ClaimEvent.event_date.desc())
+    if status != "all":
+        query = query.where(ClaimEvent.status == status)
+    return [_admin_event_out(e) for e in db.scalars(query)]
+
+
+def _transition_event(
+    db: Session, event_id: uuid.UUID, admin: str, new_status: str, event_type: str
+) -> AdminEventOut:
+    event = db.get(ClaimEvent, event_id)
+    if event is None:
+        raise HTTPException(404, "event not found")
+    if event.status not in ("draft", "published"):
+        raise HTTPException(409, f"event is {event.status}")
+    event.status = new_status
+    db.add(
+        AuditEvent(
+            actor_type="admin",
+            actor_id=admin,
+            event_type=event_type,
+            event_payload={"event_id": str(event_id), "title": event.title},
+        )
+    )
+    db.flush()
+    return _admin_event_out(event)
+
+
+@router.post("/events/{event_id}/publish", response_model=AdminEventOut)
+def publish_claim_event(
+    event_id: uuid.UUID,
+    admin: str = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> AdminEventOut:
+    return _transition_event(db, event_id, admin, "published", "claim_event.published")
+
+
+@router.post("/events/{event_id}/reject", response_model=AdminEventOut)
+def reject_claim_event(
+    event_id: uuid.UUID,
+    admin: str = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> AdminEventOut:
+    return _transition_event(db, event_id, admin, "rejected", "claim_event.rejected")
+
+
+@router.post("/events/research")
+def research_claim_events_endpoint(
+    lookback_days: int = 7,
+    admin: str = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict[str, int]:
+    """Run the event-research task now; new findings land as drafts."""
+    from karenbot.api.main import _llm
+    from karenbot.discovery.event_research import research_claim_events
+
+    counts = research_claim_events(db, _llm(), lookback_days=max(1, min(lookback_days, 31)))
+    db.add(
+        AuditEvent(
+            actor_type="admin",
+            actor_id=admin,
+            event_type="claim_event.research_run",
+            event_payload=counts,
+        )
+    )
+    return counts

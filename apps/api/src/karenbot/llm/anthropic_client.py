@@ -6,7 +6,7 @@ the supported way to get schema-validated output is structured outputs —
 validated instance on `response.parsed_output`.
 """
 
-from typing import TypeVar
+from typing import Any, TypeVar
 
 import anthropic
 from pydantic import BaseModel
@@ -47,3 +47,42 @@ class AnthropicClient:
         if response.parsed_output is None:
             raise RuntimeError(f"model returned no parsable output for task {task}")
         return response.parsed_output
+
+    def generate_with_search(
+        self,
+        task: str,
+        system_prompt: str,
+        user_content: str,
+        output_model: type[T],
+        max_searches: int = 12,
+    ) -> T:
+        """Structured output with the server-side web_search tool enabled.
+
+        Server tools run on Anthropic's side; a turn can pause mid-search
+        (stop_reason "pause_turn"), in which case the partial content is
+        echoed back to continue the same turn.
+        """
+        messages: list[Any] = [{"role": "user", "content": user_content}]
+        tools: list[Any] = [
+            {
+                "type": "web_search_20260209",
+                "name": "web_search",
+                "max_uses": max_searches,
+            }
+        ]
+        for _ in range(4):  # initial request + up to 3 pause_turn continuations
+            response = self._client.messages.parse(
+                model=self._agent_model,
+                max_tokens=16000,
+                system=system_prompt,
+                messages=messages,
+                tools=tools,
+                output_format=output_model,
+            )
+            if response.stop_reason == "pause_turn":
+                messages.append({"role": "assistant", "content": response.content})
+                continue
+            if response.parsed_output is None:
+                raise RuntimeError(f"model returned no parsable output for task {task}")
+            return response.parsed_output
+        raise RuntimeError(f"task {task} did not complete after repeated pause_turn")
