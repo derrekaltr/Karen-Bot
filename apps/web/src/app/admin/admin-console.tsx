@@ -859,12 +859,20 @@ export function AdminConsole() {
       <div className="mx-auto max-w-6xl px-6 py-8">
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <Link
-              href="/dashboard"
-              className="text-xs font-semibold text-accent-600 hover:text-accent-700"
-            >
-              ← Dashboard
-            </Link>
+            <span className="flex items-center gap-3">
+              <Link
+                href="/ops"
+                className="text-xs font-semibold text-accent-600 hover:text-accent-700"
+              >
+                Ops Council
+              </Link>
+              <Link
+                href="/dashboard"
+                className="text-xs font-semibold text-accent-600 hover:text-accent-700"
+              >
+                App
+              </Link>
+            </span>
             <h1 className="mt-1 text-xl font-semibold tracking-tight">
               Admin console
             </h1>

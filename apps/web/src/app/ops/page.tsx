@@ -12,12 +12,20 @@ export default function OpsPage() {
     <div className="min-h-dvh">
       <AppHeader
         right={
-          <Link
-            href="/dashboard"
-            className="text-sm font-bold text-ink-600 underline hover:text-ink-900"
-          >
-            Back to dashboard
-          </Link>
+          <span className="flex items-center gap-4">
+            <Link
+              href="/admin"
+              className="text-sm font-bold text-ink-600 underline hover:text-ink-900"
+            >
+              Admin console
+            </Link>
+            <Link
+              href="/dashboard"
+              className="text-sm font-bold text-ink-600 underline hover:text-ink-900"
+            >
+              App
+            </Link>
+          </span>
         }
       />
       <main className="mx-auto max-w-4xl px-6 py-10">

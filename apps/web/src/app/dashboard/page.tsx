@@ -14,7 +14,6 @@ const navItems = [
   { label: "What's owed", href: "/events" },
   { label: "Subscriptions", href: "/subscriptions" },
   { label: "Connected Accounts", href: "/accounts" },
-  { label: "Ops Council", href: "/ops" },
   { label: "Billing", href: "/dashboard" },
   { label: "Settings", href: "/dashboard" },
 ] as const;
@@ -51,14 +50,6 @@ export default function DashboardPage() {
               </li>
             ))}
           </ul>
-          <div className="mt-2 sm:mt-4 sm:border-t-2 sm:border-black/10 sm:pt-3">
-            <Link
-              href="/admin"
-              className="block rounded-xl px-3 py-2 text-xs font-bold text-ink-400 hover:bg-white hover:text-ink-600"
-            >
-              Admin
-            </Link>
-          </div>
         </nav>
       </aside>
 
