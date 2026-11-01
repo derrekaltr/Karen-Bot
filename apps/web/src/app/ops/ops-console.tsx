@@ -11,23 +11,54 @@ import {
   addMember,
   createItem,
   getMe,
+  getOpsMetrics,
   listItems,
   listMembers,
   runResearch,
   type ItemKind,
   type OpsItem,
   type OpsMember,
+  type OpsMetrics,
 } from "@/lib/ops-api";
 import { KindPill, StatusPill } from "./badges";
 
-type Tab = "inbox" | "all" | "research" | "team";
+type Tab = "inbox" | "all" | "research" | "decisions" | "team";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "inbox", label: "For your review" },
   { key: "all", label: "Everything" },
   { key: "research", label: "Research" },
+  { key: "decisions", label: "Decisions" },
   { key: "team", label: "Team" },
 ];
+
+function MetricsStrip({ metrics }: { metrics: OpsMetrics }) {
+  const cells = [
+    { label: "Cases", value: String(metrics.total_cases) },
+    { label: "Resolved", value: String(metrics.resolved_cases) },
+    {
+      label: "Recovered",
+      value: `$${metrics.recovered_total.toFixed(2)}`,
+    },
+    {
+      label: "Saved / yr",
+      value: `$${metrics.yearly_savings.toFixed(2)}`,
+    },
+  ];
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {cells.map((cell) => (
+        <div
+          key={cell.label}
+          className="rounded-2xl border-2 border-black bg-white p-4 shadow-[3px_3px_0_0_#000]"
+        >
+          <p className="text-xs font-bold text-ink-400">{cell.label}</p>
+          <p className="font-display text-xl">{cell.value}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function describeError(err: unknown): string {
   if (err instanceof ApiError) return err.detail;
@@ -297,9 +328,18 @@ export function OpsConsole() {
   const [researching, setResearching] = useState(false);
   const [researchNote, setResearchNote] = useState<string | null>(null);
 
+  const [metrics, setMetrics] = useState<OpsMetrics | null>(null);
+
   const refetch = useCallback(async (activeTab: Tab) => {
     if (activeTab === "team") return;
-    const box = activeTab === "inbox" ? "inbox" : activeTab === "research" ? "research" : "all";
+    const box =
+      activeTab === "inbox"
+        ? "inbox"
+        : activeTab === "research"
+          ? "research"
+          : activeTab === "decisions"
+            ? "decisions"
+            : "all";
     setItems(await listItems(box));
   }, []);
 
@@ -313,6 +353,7 @@ export function OpsConsole() {
         setMe(who);
         setMembers(await listMembers());
         await refetch("inbox");
+        setMetrics(await getOpsMetrics());
       } catch (err) {
         if (!cancelled) setGateError(describeError(err));
       }
@@ -359,6 +400,7 @@ export function OpsConsole() {
 
   return (
     <div className="flex flex-col gap-6">
+      {metrics !== null && <MetricsStrip metrics={metrics} />}
       <nav aria-label="Ops sections" className="flex flex-wrap gap-2">
         {TABS.map(({ key, label }) => (
           <button
@@ -394,7 +436,7 @@ export function OpsConsole() {
               )}
             </div>
           )}
-          {tab !== "research" && (
+          {tab !== "research" && tab !== "decisions" && (
             <NewItemForm
               members={members}
               me={me}

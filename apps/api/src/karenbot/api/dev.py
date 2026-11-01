@@ -308,6 +308,35 @@ def _seed_tier1_policies(session) -> None:
             )
 
 
+def _seed_launch_checklist(session) -> None:
+    """The company's known launch blockers as ops tasks, so the whole team
+    sees them. Idempotent by title; status is managed on the council."""
+    from karenbot.domain.models import OpsItem
+
+    tasks = [
+        ("Form the business entity", "LLC or C-corp — blocks Stripe, Plaid production, insurance, and the attorney engagement. See docs/legal-risk.md."),
+        ("Attorney review of legal gates", "UPL exposure, success-fee structure, LoA wording, disclosure wording, ToS/privacy policy. docs/legal-risk.md is the brief."),
+        ("Stripe account + billing", "Requires the entity. Subscription + success-fee billing model."),
+        ("Plaid production application", "Sandbox is free/instant; production approval is needed to link real customer banks."),
+        ("Google OAuth verification + CASA", "Until verified, Gmail connections are testing-mode only (7-day token expiry, allowlisted users)."),
+        ("Rotate exposed secrets", "Google client secret and Anthropic key passed through chat during setup — rotate both before production."),
+        ("Business insurance quote", "E&O / professional liability for a consumer-claims service."),
+        ("Privacy policy + terms of service", "Blocked on attorney; drafts can start from docs/legal-risk.md."),
+    ]
+    existing = {i.title for i in session.scalars(select(OpsItem).where(OpsItem.kind == "task"))}
+    for title, body in tasks:
+        if title not in existing:
+            session.add(
+                OpsItem(
+                    kind="task",
+                    title=title,
+                    body=body,
+                    status="new",
+                    created_by_email="karen-ops",
+                )
+            )
+
+
 def _seed_ops_members(session) -> None:
     """Founding team on the Ops Council. Dev demo user included so the
     council is explorable in the sandbox; the partner gets added from the
@@ -511,6 +540,7 @@ def build_router(
             _seed_tier1_policies(session)
             _seed_demo_events(session)
             _seed_ops_members(session)
+            _seed_launch_checklist(session)
             session.commit()
         return SeedOut(user_email=DEMO_EMAIL, companies=names)
 

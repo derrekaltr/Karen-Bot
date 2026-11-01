@@ -156,3 +156,37 @@ def test_research_run_creates_briefs(client):
     assert brief["created_by_email"] == "karen-research"
     assert brief["recommendation"]
     assert brief["source_urls"]
+
+
+def test_launch_checklist_seeded_and_metrics_visible(client):
+    tasks = [
+        i
+        for i in client.get("/ops/items", headers=OWNER).json()
+        if i["kind"] == "task"
+    ]
+    titles = {t["title"] for t in tasks}
+    assert "Form the business entity" in titles
+    assert "Rotate exposed secrets" in titles
+    # Seed is idempotent.
+    client.post("/dev/seed")
+    again = [
+        i
+        for i in client.get("/ops/items", headers=OWNER).json()
+        if i["kind"] == "task"
+    ]
+    assert len(again) == len(tasks)
+    # Metrics are member-visible without the admin token.
+    metrics = client.get("/ops/metrics", headers=OWNER)
+    assert metrics.status_code == 200
+    assert "recovered_total" in metrics.json()
+
+
+def test_decisions_box_filters(client):
+    client.post(
+        "/ops/items",
+        headers=OWNER,
+        json={"kind": "decision", "title": "We punch up only", "body": "Moral code."},
+    )
+    decisions = client.get("/ops/items?box=decisions", headers=OWNER).json()
+    assert len(decisions) == 1
+    assert decisions[0]["kind"] == "decision"

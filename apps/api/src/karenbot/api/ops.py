@@ -195,6 +195,8 @@ def build_router() -> APIRouter:
             query = query.where(OpsItem.created_by_email == member.email)
         elif box == "research":
             query = query.where(OpsItem.kind == "research_brief")
+        elif box == "decisions":
+            query = query.where(OpsItem.kind == "decision")
         return [_item_out(i) for i in db.scalars(query)]
 
     @router.post("/items", response_model=ItemOut)
@@ -345,6 +347,42 @@ def build_router() -> APIRouter:
         item.status = "in_review"
         db.flush()
         return _item_out(item)
+
+    @router.get("/metrics")
+    def metrics(
+        member: OpsMember = Depends(current_member),
+        db: Session = Depends(get_db),
+    ) -> dict:
+        """Traction numbers for the whole team — no admin token needed."""
+        from decimal import Decimal
+
+        from sqlalchemy import func
+
+        from karenbot.domain.models import Case, RecoveryOutcome, RecurringCharge
+
+        total_cases = db.scalar(select(func.count()).select_from(Case)) or 0
+        resolved = (
+            db.scalar(select(func.count()).select_from(Case).where(Case.status == "RESOLVED"))
+            or 0
+        )
+        recovered = db.scalar(
+            select(func.coalesce(func.sum(RecoveryOutcome.amount), 0)).where(
+                RecoveryOutcome.verification_status == "verified_received",
+                RecoveryOutcome.recovery_type != "subscription_savings",
+            )
+        ) or Decimal("0")
+        yearly_savings = Decimal("0")
+        for charge in db.scalars(
+            select(RecurringCharge).where(RecurringCharge.status == "canceled")
+        ):
+            multiplier = {"weekly": 52, "monthly": 12, "yearly": 1}.get(charge.cadence, 12)
+            yearly_savings += charge.amount * multiplier
+        return {
+            "total_cases": int(total_cases),
+            "resolved_cases": int(resolved),
+            "recovered_total": float(recovered),
+            "yearly_savings": float(yearly_savings),
+        }
 
     # ---- research agent ---------------------------------------------------
 

@@ -57,6 +57,11 @@ class Settings(BaseSettings):
     # Observability (optional).
     sentry_dsn: str = ""
 
+    # Extra allowed browser origins (comma-separated), e.g. the production
+    # web domain: "https://karencollects.com,https://www.karencollects.com".
+    # Localhost dev origins are always allowed in dev mode.
+    cors_origins: str = ""
+
     # Plaid (recurring-bill discovery). env: mock | sandbox | production.
     plaid_env: str = "mock"
     plaid_client_id: str = ""

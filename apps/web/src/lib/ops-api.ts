@@ -111,7 +111,18 @@ export function addMember(input: {
   return request("/ops/members", { method: "POST", body: input });
 }
 
-export type ItemBox = "all" | "inbox" | "sent" | "research";
+export type ItemBox = "all" | "inbox" | "sent" | "research" | "decisions";
+
+export interface OpsMetrics {
+  total_cases: number;
+  resolved_cases: number;
+  recovered_total: number;
+  yearly_savings: number;
+}
+
+export function getOpsMetrics(): Promise<OpsMetrics> {
+  return request("/ops/metrics");
+}
 
 export function listItems(box: ItemBox = "all"): Promise<OpsItem[]> {
   return request(`/ops/items?box=${box}`);

@@ -44,15 +44,19 @@ from karenbot.workflows.worker import Worker
 init_observability("api")
 app = FastAPI(title="KarenBot API", version="0.1.0")
 
+_dev_origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    # Dev fallback port — used when another local app holds 3000.
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
+]
+_configured_origins = [
+    o.strip() for o in get_settings().cors_origins.split(",") if o.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        # Dev fallback port — used when another local app holds 3000.
-        "http://localhost:3001",
-        "http://127.0.0.1:3001",
-    ],
+    allow_origins=(_dev_origins if get_settings().dev_mode else []) + _configured_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
