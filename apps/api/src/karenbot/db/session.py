@@ -10,10 +10,25 @@ _engine = None
 _session_factory: sessionmaker[Session] | None = None
 
 
+def _normalized_database_url() -> str:
+    """Accept bare postgres URLs from managed hosts (Railway/Heroku style).
+
+    SQLAlchemy needs an explicit driver; hosts inject `postgresql://` (or the
+    legacy `postgres://`). Normalize to psycopg so KARENBOT_DATABASE_URL can
+    be set straight to the platform's DATABASE_URL reference.
+    """
+    url = get_settings().database_url
+    if url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql+psycopg://", 1)
+    if url.startswith("postgresql://"):
+        return url.replace("postgresql://", "postgresql+psycopg://", 1)
+    return url
+
+
 def get_engine():
     global _engine
     if _engine is None:
-        _engine = create_engine(get_settings().database_url, pool_pre_ping=True)
+        _engine = create_engine(_normalized_database_url(), pool_pre_ping=True)
     return _engine
 
 
