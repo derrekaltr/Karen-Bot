@@ -316,8 +316,15 @@ async function request<T>(
 // Endpoints
 // ---------------------------------------------------------------------------
 
-export function seed(): Promise<{ user_email: string; companies: string[] }> {
-  return request("/dev/seed", { method: "POST", body: {} });
+/** Dev-only demo seeding. In production the /dev router doesn't exist
+ *  (404) — that's expected and must never break a page. */
+export async function seed(): Promise<void> {
+  try {
+    await request("/dev/seed", { method: "POST", body: {} });
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return;
+    throw err;
+  }
 }
 
 export function listCompanies(): Promise<Company[]> {

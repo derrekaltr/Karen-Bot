@@ -728,7 +728,8 @@ export function CaseDetail({ caseId }: { caseId: string }) {
         </ul>
       </details>
 
-      {/* Dev simulator */}
+      {/* Dev simulator — sandbox only; hidden against the production API */}
+      {sandbox && (
       <div className="rounded-xl border-2 border-dashed border-ink-400 p-5">
         <p className="text-xs font-bold text-ink-400">Simulator (dev only)</p>
         <div className="mt-3 flex flex-wrap items-end gap-3">
@@ -762,6 +763,7 @@ export function CaseDetail({ caseId }: { caseId: string }) {
           </Button>
         </div>
       </div>
+      )}
 
       {/* Audit trail */}
       <details className="rounded-xl border-2 border-black">
