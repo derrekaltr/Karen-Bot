@@ -262,3 +262,15 @@ export function runEventResearch(
 ): Promise<{ created: number; skipped: number; proposed: number }> {
   return adminRequest(token, "/admin/events/research", { method: "POST" });
 }
+
+export interface CatalogLoadResult {
+  companies_added: number;
+  policies_added: number;
+  ops_members_added: number;
+  checklist_tasks_added: number;
+}
+
+/** Load/refresh the curated product catalog (idempotent, insert-only). */
+export function loadProductCatalog(token: string): Promise<CatalogLoadResult> {
+  return adminRequest(token, "/admin/catalog/load", { method: "POST" });
+}

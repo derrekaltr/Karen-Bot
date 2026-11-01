@@ -22,6 +22,7 @@ import {
   deactivateChannel,
   listChannels,
   listAdminEvents,
+  loadProductCatalog,
   pauseCase,
   publishEvent,
   rejectEvent,
@@ -609,6 +610,8 @@ export function AdminConsole() {
   const [events, setEvents] = useState<AdminClaimEvent[] | null>(null);
   const [busyEventId, setBusyEventId] = useState<string | null>(null);
   const [researching, setResearching] = useState(false);
+  const [loadingCatalog, setLoadingCatalog] = useState(false);
+  const [catalogNote, setCatalogNote] = useState<string | null>(null);
   const [researchResult, setResearchResult] = useState<string | null>(null);
 
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -725,6 +728,27 @@ export function AdminConsole() {
         );
     } finally {
       setBusyEventId(null);
+    }
+  }
+
+  async function handleLoadCatalog() {
+    if (token === null) return;
+    setLoadingCatalog(true);
+    setCatalogNote(null);
+    try {
+      const counts = await loadProductCatalog(token);
+      setCatalogNote(
+        `Catalog loaded: ${counts.companies_added} new companies, ${counts.policies_added} new policies.`,
+      );
+      await refresh(token);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) handleForbidden();
+      else
+        setCatalogNote(
+          `Catalog load failed: ${err instanceof Error ? err.message : "unknown error"}`,
+        );
+    } finally {
+      setLoadingCatalog(false);
     }
   }
 
@@ -854,6 +878,14 @@ export function AdminConsole() {
               Refresh
             </Button>
             <Button
+              variant="secondary"
+              disabled={loadingCatalog}
+              onClick={() => void handleLoadCatalog()}
+              className="min-h-9 px-4 py-2 text-xs"
+            >
+              {loadingCatalog ? "Loading catalog…" : "Load product catalog"}
+            </Button>
+            <Button
               variant="danger"
               disabled={togglingKillSwitch || killSwitchActive === null}
               onClick={() => void handleToggleKillSwitch()}
@@ -869,6 +901,12 @@ export function AdminConsole() {
             </Button>
           </div>
         </header>
+
+        {catalogNote !== null && (
+          <p className="mt-4 rounded-xl border-2 border-black bg-face-100 px-4 py-2 text-sm font-bold">
+            {catalogNote}
+          </p>
+        )}
 
         {killSwitchActive === true && (
           <div

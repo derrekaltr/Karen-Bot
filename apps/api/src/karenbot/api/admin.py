@@ -465,3 +465,29 @@ def research_claim_events_endpoint(
         )
     )
     return counts
+
+
+# ----------------------------------------------------------------------------
+# Production catalog loader (real companies/policies/channels; zero demo data)
+# ----------------------------------------------------------------------------
+
+
+@router.post("/catalog/load")
+def load_product_catalog(
+    admin: str = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict[str, int]:
+    """Load/refresh the curated product catalog. Idempotent; insert-only for
+    policies and channels, so human verifications are never overwritten."""
+    from karenbot.catalog import load_catalog
+
+    counts = load_catalog(db)
+    db.add(
+        AuditEvent(
+            actor_type="admin",
+            actor_id=admin,
+            event_type="catalog.loaded",
+            event_payload=counts,
+        )
+    )
+    return counts

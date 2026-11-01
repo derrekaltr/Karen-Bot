@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
+from karenbot.catalog import COMPANY_INTEL, load_catalog
 from karenbot.channels.mock_email import MockEmailAdapter
 from karenbot.db.session import get_session_factory
 from karenbot.domain.models import Company, CompanyPolicy, SupportChannel, User
@@ -217,40 +218,6 @@ SEED_COMPANIES: "list[dict[str, Any]]" = [
 # Generosity intelligence per company (INTERNAL TARGETING ONLY — informs
 # what Karen asks for and expects; never asserted in negotiation). USD
 # equivalents; sources in docs/research/company-generosity.md.
-COMPANY_INTEL: dict[str, dict] = {
-    "American Airlines": {"goodwill_low": 50, "goodwill_high": 300,
-        "goodwill_unit": "miles_5k_20k", "best_channel": "customer relations email form",
-        "notes": "Miles goodwill well documented; exec emails reported bouncing since 1/2026.",
-        "evidence": "JR/FC"},
-    "Delta Air Lines": {"goodwill_low": 25, "goodwill_high": 150,
-        "goodwill_unit": "miles_2.5k_10k", "best_channel": "live chat, then feedback form",
-        "notes": "Proactive 10k miles after cancellations documented; chat beats phone.",
-        "evidence": "JR"},
-    "Southwest Airlines": {"goodwill_low": 75, "goodwill_high": 300,
-        "goodwill_unit": "voucher", "best_channel": "delay form (never automatic)",
-        "notes": "$75+ voucher is a DOT-settlement entitlement through Apr 2027 — ask.",
-        "evidence": "PG"},
-    "JetBlue": {"goodwill_low": 60, "goodwill_high": 60,
-        "goodwill_unit": "points_5000", "best_channel": "automatic (attach TrueBlue first)",
-        "notes": "Flat 5,000 TrueBlue points for qualifying controllable disruptions.",
-        "evidence": "PG"},
-    "American Express": {"goodwill_low": 50, "goodwill_high": 700,
-        "goodwill_unit": "fee_waiver", "best_channel": "chat/phone — just ask",
-        "notes": "Fee-waiver asks succeed ~90% (self-reported); retention offers to 50k pts.",
-        "evidence": "JR"},
-    "Uber": {"goodwill_low": 5, "goodwill_high": 40,
-        "goodwill_unit": "credit", "best_channel": "in-app within 30 days",
-        "notes": "Credits over refunds; 'sole discretion' policy.", "evidence": "PG/JR"},
-    "Amazon": {"goodwill_low": 10, "goodwill_high": 100,
-        "goodwill_unit": "refund", "best_channel": "account chat",
-        "notes": "Returnless-refund algorithmic; report early, avoid pattern abuse.",
-        "evidence": "INF"},
-    "Chipotle": {"goodwill_low": 5, "goodwill_high": 30, "goodwill_unit": "refund_or_bogo",
-        "best_channel": "contact form / chat", "notes": "App recovery offers typical.",
-        "evidence": "FC"},
-    "McDonald's": {"goodwill_low": 5, "goodwill_high": 25, "goodwill_unit": "refund",
-        "best_channel": "feedback form", "notes": "Franchisee-dependent.", "evidence": "FC"},
-}
 
 # NOTE: all seed channels are .example placeholders for the mock adapter.
 # Real company intelligence (verified addresses, sourced policies) is a
@@ -273,87 +240,19 @@ class TickOut(BaseModel):
     persona: str
 
 
-def _seed_tier1_policies(session) -> None:
-    """Load Tier 1 compensation-policy research (data_compensation_policies).
-    PRIMARY-confidence records seed verified; others unverified pending
-    human review (eligibility ignores unverified policies)."""
-    from karenbot.data_compensation_policies import TIER1_COMPANIES
-
-    for name, spec in TIER1_COMPANIES.items():
-        company = session.scalars(select(Company).where(Company.name == name)).first()
-        if company is None:
-            company = Company(
-                name=name, industry=spec["industry"], size_class="enterprise"
-            )
-            session.add(company)
-            session.flush()
-        existing = {
-            p.policy_type
-            for p in session.scalars(
-                select(CompanyPolicy).where(CompanyPolicy.company_id == company.id)
-            )
-        }
-        for policy in spec["policies"]:
-            if policy["policy_type"] in existing:
-                continue
-            session.add(
-                CompanyPolicy(
-                    company_id=company.id,
-                    policy_type=policy["policy_type"],
-                    source_url=policy["source_url"],
-                    verified_at=datetime.now(UTC) if policy["verified"] else None,
-                    content={"summary": policy["summary"]},
-                    eligibility_rules=policy["rules"],
-                )
-            )
-
-
-def _seed_launch_checklist(session) -> None:
-    """The company's known launch blockers as ops tasks, so the whole team
-    sees them. Idempotent by title; status is managed on the council."""
-    from karenbot.domain.models import OpsItem
-
-    tasks = [
-        ("Form the business entity", "LLC or C-corp — blocks Stripe, Plaid production, insurance, and the attorney engagement. See docs/legal-risk.md."),
-        ("Attorney review of legal gates", "UPL exposure, success-fee structure, LoA wording, disclosure wording, ToS/privacy policy. docs/legal-risk.md is the brief."),
-        ("Stripe account + billing", "Requires the entity. Subscription + success-fee billing model."),
-        ("Plaid production application", "Sandbox is free/instant; production approval is needed to link real customer banks."),
-        ("Google OAuth verification + CASA", "Until verified, Gmail connections are testing-mode only (7-day token expiry, allowlisted users)."),
-        ("Rotate exposed secrets", "Google client secret and Anthropic key passed through chat during setup — rotate both before production."),
-        ("Business insurance quote", "E&O / professional liability for a consumer-claims service."),
-        ("Privacy policy + terms of service", "Blocked on attorney; drafts can start from docs/legal-risk.md."),
-    ]
-    existing = {i.title for i in session.scalars(select(OpsItem).where(OpsItem.kind == "task"))}
-    for title, body in tasks:
-        if title not in existing:
-            session.add(
-                OpsItem(
-                    kind="task",
-                    title=title,
-                    body=body,
-                    status="new",
-                    created_by_email="karen-ops",
-                )
-            )
-
-
-def _seed_ops_members(session) -> None:
-    """Founding team on the Ops Council. Dev demo user included so the
-    council is explorable in the sandbox; the partner gets added from the
-    Team tab."""
+def _seed_demo_ops_member(session) -> None:
+    """The dev demo user joins the Ops Council so /ops is explorable in the
+    sandbox. Production membership comes from the catalog (founders only)."""
     from karenbot.domain.models import OpsMember
 
-    founders = [
-        ("dana@example.com", "Dana Example", "owner"),
-        ("derrekpbrown@gmail.com", "Derrek", "owner"),
-        ("derrek@altrmgmt.com", "Derrek (ALTR)", "owner"),
-    ]
-    existing = {m.email for m in session.scalars(select(OpsMember))}
-    for email, name, role in founders:
-        if email not in existing:
-            session.add(
-                OpsMember(email=email, display_name=name, role=role, added_by="seed")
+    if not session.scalars(
+        select(OpsMember).where(OpsMember.email == DEMO_EMAIL)
+    ).first():
+        session.add(
+            OpsMember(
+                email=DEMO_EMAIL, display_name="Dana Example", role="owner", added_by="seed"
             )
+        )
 
 
 def _seed_demo_events(session) -> None:
@@ -419,29 +318,6 @@ def _seed_demo_events(session) -> None:
     )
 
 
-def _seed_research_channels(session, company, existing_addresses) -> None:
-    """Load researched real-world channels as UNVERIFIED rows (policy engine
-    refuses to send until a human verifies each in the admin console)."""
-    from karenbot.data_support_channels import RESEARCH_CHANNELS
-
-    for channel_type, address, purpose, is_escalation, source in RESEARCH_CHANNELS.get(
-        company.name, []
-    ):
-        if address in existing_addresses:
-            continue
-        session.add(
-            SupportChannel(
-                company_id=company.id,
-                channel=channel_type,
-                address=address,
-                purpose=purpose,
-                is_escalation=is_escalation,
-                verified=False,
-                verification_source_url=source,
-            )
-        )
-
-
 def build_router(
     get_adapter: "Callable[[], MockEmailAdapter]", get_worker: "Callable[[], Worker]"
 ) -> APIRouter:
@@ -464,6 +340,9 @@ def build_router(
     def _do_seed() -> SeedOut:
         factory = get_session_factory()
         with factory() as session:
+            # Product catalog first (same loader production uses)...
+            load_catalog(session)
+            # ...then the demo layer on top.
             user = session.scalars(select(User).where(User.email == DEMO_EMAIL)).first()
             if user is None:
                 session.add(User(email=DEMO_EMAIL, display_name="Dana Example"))
@@ -501,7 +380,6 @@ def build_router(
                 }
                 if spec["name"] in COMPANY_INTEL and not company.intel:
                     company.intel = COMPANY_INTEL[spec["name"]]
-                _seed_research_channels(session, company, existing_channels)
                 if spec.get("channel") and spec["channel"] in existing_channels:
                     continue
                 if spec.get("channel") and spec["policy_type"] in existing_policies:
@@ -537,10 +415,8 @@ def build_router(
                                 eligibility_rules=extra["rules"],
                             )
                         )
-            _seed_tier1_policies(session)
             _seed_demo_events(session)
-            _seed_ops_members(session)
-            _seed_launch_checklist(session)
+            _seed_demo_ops_member(session)
             session.commit()
         return SeedOut(user_email=DEMO_EMAIL, companies=names)
 
