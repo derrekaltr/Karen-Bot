@@ -78,3 +78,18 @@ class ResearchedEvent(BaseModel):
 
 class ResearchedEvents(BaseModel):
     events: list[ResearchedEvent] = Field(default_factory=list)
+
+
+class BusinessBrief(BaseModel):
+    """One research finding for the company's internal Ops Council."""
+
+    title: str
+    summary: str  # what we learned
+    why_it_matters: str  # relevance to KarenBot specifically
+    recommendation: str  # the concrete suggested action
+    source_urls: list[str] = Field(default_factory=list)
+    confidence: Literal["high", "medium", "low"] = "medium"
+
+
+class BusinessBriefs(BaseModel):
+    briefs: list[BusinessBrief] = Field(default_factory=list)

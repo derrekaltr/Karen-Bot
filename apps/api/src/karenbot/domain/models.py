@@ -472,6 +472,61 @@ class ClaimEvent(TimestampMixin, Base):
     research_notes: Mapped[str | None] = mapped_column(Text)
 
 
+class OpsMember(TimestampMixin, Base):
+    """Company-team allowlist for the internal Ops Council (/ops).
+
+    Members sign in with normal Clerk accounts; access to ops surfaces is
+    granted only when their email is here. Roles: owner (can manage
+    members) | member.
+    """
+
+    __tablename__ = "ops_members"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    email: Mapped[str] = mapped_column(String(320), unique=True)
+    display_name: Mapped[str] = mapped_column(String(200))
+    role: Mapped[str] = mapped_column(String(20), default="member")  # owner | member
+    added_by: Mapped[str | None] = mapped_column(String(320))
+
+
+class OpsItem(TimestampMixin, Base):
+    """One thing on the Ops Council: a design concept, proposal, task,
+    decision, or research brief. Uniform review flow: submitter -> reviewer
+    -> approved | changes_requested, with a comment thread."""
+
+    __tablename__ = "ops_items"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    # design_concept | proposal | task | decision | research_brief
+    kind: Mapped[str] = mapped_column(String(30))
+    title: Mapped[str] = mapped_column(String(300))
+    body: Mapped[str] = mapped_column(Text)
+    # new (no reviewer yet / research) | in_review | approved |
+    # changes_requested | archived
+    status: Mapped[str] = mapped_column(String(30), default="new")
+    created_by_email: Mapped[str] = mapped_column(String(320))
+    reviewer_email: Mapped[str | None] = mapped_column(String(320))
+    # Research briefs: the agent's concrete suggestion, and its sources.
+    recommendation: Mapped[str | None] = mapped_column(Text)
+    source_urls: Mapped[list[str]] = mapped_column(JSONVariant, default=list)
+    decided_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
+
+    comments: Mapped[list["OpsComment"]] = relationship(
+        back_populates="item", order_by="OpsComment.created_at"
+    )
+
+
+class OpsComment(TimestampMixin, Base):
+    __tablename__ = "ops_comments"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    item_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("ops_items.id"))
+    author_email: Mapped[str] = mapped_column(String(320))
+    body: Mapped[str] = mapped_column(Text)
+
+    item: Mapped[OpsItem] = relationship(back_populates="comments")
+
+
 class SystemControl(TimestampMixin, Base):
     """Operational switches (e.g. the global kill switch). Keyed KV so new
     controls don't need migrations; every change is audited by the caller."""

@@ -308,6 +308,25 @@ def _seed_tier1_policies(session) -> None:
             )
 
 
+def _seed_ops_members(session) -> None:
+    """Founding team on the Ops Council. Dev demo user included so the
+    council is explorable in the sandbox; the partner gets added from the
+    Team tab."""
+    from karenbot.domain.models import OpsMember
+
+    founders = [
+        ("dana@example.com", "Dana Example", "owner"),
+        ("derrekpbrown@gmail.com", "Derrek", "owner"),
+        ("derrek@altrmgmt.com", "Derrek (ALTR)", "owner"),
+    ]
+    existing = {m.email for m in session.scalars(select(OpsMember))}
+    for email, name, role in founders:
+        if email not in existing:
+            session.add(
+                OpsMember(email=email, display_name=name, role=role, added_by="seed")
+            )
+
+
 def _seed_demo_events(session) -> None:
     """Two clearly-labeled DEMO claim events so the /events page has content
     in a fresh sandbox. Real events only ever enter as research-agent drafts
@@ -491,6 +510,7 @@ def build_router(
                         )
             _seed_tier1_policies(session)
             _seed_demo_events(session)
+            _seed_ops_members(session)
             session.commit()
         return SeedOut(user_email=DEMO_EMAIL, companies=names)
 

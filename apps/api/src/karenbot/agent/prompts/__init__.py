@@ -17,6 +17,7 @@ CURRENT_VERSIONS: dict[str, int] = {
     "draft_for_customer": 1,
     "interpret_reply": 1,
     "research_events": 1,
+    "business_research": 1,
 }
 
 

@@ -52,6 +52,8 @@ class ScriptedClient:
             result = self._interpret(context)
         elif task == "research_events":
             result = _scripted_research(context)
+        elif task == "business_research":
+            result = _scripted_business_research(context)
         else:
             raise ValueError(f"scripted client has no implementation for task {task}")
         return output_model.model_validate(result.model_dump())
@@ -300,6 +302,23 @@ def _scripted_research(ctx: dict) -> ResearchedEvents:
                 source_urls=["https://example.com/scripted-outage"],
                 confidence="high",
                 notes="scripted fixture",
+            )
+        ]
+    )
+
+
+def _scripted_business_research(ctx: dict) -> BaseModel:
+    from karenbot.agent.schemas import BusinessBrief, BusinessBriefs
+
+    return BusinessBriefs(
+        briefs=[
+            BusinessBrief(
+                title="Scripted: competitor raised prices",
+                summary="A scripted competitor raised its subscription price by $3/mo.",
+                why_it_matters="Pricing headroom for our own subscription tier.",
+                recommendation="Revisit our planned price point this month.",
+                source_urls=["https://example.com/scripted-competitor"],
+                confidence="high",
             )
         ]
     )
