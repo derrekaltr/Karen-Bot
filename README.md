@@ -23,6 +23,7 @@ make dev         # Postgres (+ optional MinIO) via docker compose
 make migrate     # Alembic migrations
 make api         # FastAPI on :8000
 npm run dev:web  # Next.js on :3000
+make mobile      # iPhone app via Expo Go — see apps/mobile/README.md
 ```
 
 `make demo-e2e` runs the whole product loop in one process: case intake →
@@ -40,6 +41,7 @@ run the same flow with Claude instead of the deterministic scripted model.
 
 ```
 apps/web        Next.js 15 + Tailwind (landing, dashboard shell, intake UI)
+apps/mobile     Expo (React Native) iPhone app — customer case flow
 apps/api        FastAPI + SQLAlchemy + Alembic
   src/karenbot/
     domain/     models, 16-state case machine, audit events
@@ -51,6 +53,7 @@ apps/api        FastAPI + SQLAlchemy + Alembic
     llm/        provider abstraction: Anthropic + scripted
     simulator/  company personas (lowball, stonewall, injection attacker, ...)
   tests/        unit / policy / workflows / injection / e2e
+packages/api-client typed fetch client shared by web + mobile
 packages/contracts  generated API types (placeholder)
 infra/          docker-compose: Postgres+pgvector, MinIO (profile: storage)
 docs/           architecture, state machine
