@@ -6,12 +6,16 @@ event in the same database transaction. Out-of-band mutation of
 `Case.status` is a bug.
 """
 
+import logging
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from karenbot.domain.enums import ACTIVE_STATES, ActorType, CaseEvent, CaseStatus
 from karenbot.domain.models import AuditEvent, Case
+from karenbot.notifications.push import enqueue_for_transition
+
+logger = logging.getLogger(__name__)
 
 
 class InvalidTransition(Exception):
@@ -100,18 +104,35 @@ def transition(
             raise InvalidTransition(case.status, event) from None
 
     case.status = new_status.value
-    session.add(
-        AuditEvent(
-            actor_type=actor_type.value,
-            actor_id=actor_id,
-            case_id=case.id,
-            event_type=f"case.{event.value.lower()}",
-            event_payload={
-                "from_status": current.value,
-                "to_status": new_status.value,
-                **(payload or {}),
-            },
-        )
+    audit = AuditEvent(
+        actor_type=actor_type.value,
+        actor_id=actor_id,
+        case_id=case.id,
+        event_type=f"case.{event.value.lower()}",
+        event_payload={
+            "from_status": current.value,
+            "to_status": new_status.value,
+            **(payload or {}),
+        },
     )
+    session.add(audit)
     session.flush()
+
+    # Customer push for news they weren't watching (offers, escalations…).
+    # Enqueued in this same transaction: it exists iff the change commits.
+    # A notification bug must never block a case, so it runs in a SAVEPOINT:
+    # on Postgres a failed statement would otherwise abort the whole
+    # transaction even though the exception is caught here.
+    try:
+        with session.begin_nested():
+            enqueue_for_transition(
+                session,
+                case,
+                event,
+                actor_type=actor_type,
+                to_status=new_status,
+                audit_event=audit,
+            )
+    except Exception:
+        logger.exception("push enqueue failed for case %s (%s)", case.id, event.value)
     return new_status

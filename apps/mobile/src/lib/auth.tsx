@@ -22,6 +22,7 @@ import {
   type ReactNode,
 } from "react";
 import { AUTH_MODE, CLERK_PUBLISHABLE_KEY } from "./config";
+import { unregisterForPush } from "./push";
 
 export interface AppAuth {
   mode: typeof AUTH_MODE;
@@ -80,7 +81,11 @@ function ClerkAuthBridge({ children }: { children: ReactNode }) {
       isLoaded,
       isSignedIn: isSignedIn === true,
       signIn,
-      signOut: () => signOut(),
+      // Unregister while the session is still valid, then end it.
+      signOut: async () => {
+        await unregisterForPush();
+        await signOut();
+      },
     }),
     [isLoaded, isSignedIn, signIn, signOut],
   );
@@ -102,7 +107,10 @@ function DevAuthProvider({ children }: { children: ReactNode }) {
         setSignedIn(true);
         return true;
       },
-      signOut: async () => setSignedIn(false),
+      signOut: async () => {
+        await unregisterForPush();
+        setSignedIn(false);
+      },
     }),
     [isSignedIn],
   );

@@ -7,11 +7,14 @@ import {
   type CaseStatus,
 } from "@karenbot/api-client";
 import { Image } from "expo-image";
+import * as Notifications from "expo-notifications";
 import { Link, Stack, router } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Linking,
+  Platform,
   Pressable,
   RefreshControl,
   SectionList,
@@ -19,9 +22,11 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { NotificationOptIn } from "@/components/NotificationOptIn";
 import { Banner, Button, Card, StatusBadge, T } from "@/components/ui";
 import { useAppAuth } from "@/lib/auth";
 import { errorMessage, useFocusedPolling } from "@/lib/hooks";
+import { pushSupport } from "@/lib/push";
 import { colors } from "@/lib/theme";
 
 /** Statuses where the case is waiting on the customer, not on Karen. */
@@ -67,6 +72,13 @@ export default function CasesScreen() {
   // Refreshes on focus (e.g. coming back from a case) and every 15s.
   useFocusedPolling(() => void load(), REFRESH_INTERVAL_MS, true);
 
+  // A Karen push arriving while the app is open: refresh right away.
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const sub = Notifications.addNotificationReceivedListener(() => void load());
+    return () => sub.remove();
+  }, [load]);
+
   async function onRefresh() {
     setRefreshing(true);
     await load();
@@ -87,13 +99,24 @@ export default function CasesScreen() {
     ].filter((s) => s.data.length > 0);
   }, [cases]);
 
-  function confirmSignOut() {
+  const hasOpenCase =
+    cases?.some((c) => !TERMINAL_STATUSES.has(c.status)) ?? false;
+
+  function openAccountMenu() {
     Alert.alert(
-      mode === "dev" ? "Leave demo mode?" : "Sign out?",
+      mode === "dev" ? "Demo account" : "Account",
       "Karen keeps working on your open cases while you're signed out.",
       [
-        { text: "Cancel", style: "cancel" },
-        { text: "Sign out", style: "destructive", onPress: () => void signOut() },
+        ...(pushSupport().supported
+          ? [
+              {
+                text: "Notification settings",
+                onPress: () => void Linking.openSettings(),
+              },
+            ]
+          : []),
+        { text: "Sign out", style: "destructive" as const, onPress: () => void signOut() },
+        { text: "Cancel", style: "cancel" as const },
       ],
     );
   }
@@ -107,7 +130,7 @@ export default function CasesScreen() {
               accessibilityRole="button"
               accessibilityLabel="Account"
               hitSlop={12}
-              onPress={confirmSignOut}
+              onPress={openAccountMenu}
             >
               <T variant="caption" color={colors.accent600}>
                 {mode === "dev" ? "Demo" : "Account"}
@@ -138,11 +161,14 @@ export default function CasesScreen() {
             />
           }
           ListHeaderComponent={
-            error !== null ? (
-              <View style={{ marginBottom: 16 }}>
-                <Banner>{`Could not load your cases: ${error}`}</Banner>
-              </View>
-            ) : undefined
+            <>
+              {error !== null && (
+                <View style={{ marginBottom: 16 }}>
+                  <Banner>{`Could not load your cases: ${error}`}</Banner>
+                </View>
+              )}
+              <NotificationOptIn visible={hasOpenCase} />
+            </>
           }
           renderSectionHeader={({ section }) => (
             <T variant="title" style={styles.sectionTitle}>

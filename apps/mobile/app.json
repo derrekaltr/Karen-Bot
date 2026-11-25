@@ -43,6 +43,7 @@
         }
       ],
       "expo-image",
+      "expo-notifications",
       "@clerk/expo"
     ],
     "experiments": {

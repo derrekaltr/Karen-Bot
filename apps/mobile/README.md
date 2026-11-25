@@ -72,6 +72,36 @@ Release builds default to `https://api.karencollects.com`; a release
 build without a Clerk key refuses to sign in rather than falling back to
 the dev header.
 
+## Push notifications
+
+The API decides what pings and sends through Expo's push service; the app
+just asks permission and registers its token (`src/lib/push.ts`).
+
+| Event (from the company / timers, never your own taps) | Notification |
+|---|---|
+| Company makes an offer that needs approval | "Delta offered $412.60" (high priority) |
+| Retention offer on a cancellation | "Netflix is trying to keep you" |
+| Company confirms a cancellation | "… confirmed your cancellation" |
+| Karen escalates / company goes quiet | "Karen is escalating with …" |
+| Case closed unsuccessfully | "Karen closed your … case" |
+
+Tapping a notification opens its case (cold start included). The opt-in
+card appears on the cases list once there's an open case — never a prompt
+at launch. Signing out unregisters the phone; a token that signs in under
+another account moves to it.
+
+**Needs a development or store build** — remote push doesn't work in Expo
+Go, the simulator, or web (the opt-in simply hides there). Once the Apple
+Developer account exists:
+
+```bash
+npx eas-cli@latest init        # writes extra.eas.projectId (required for tokens)
+npx eas-cli@latest build -p ios --profile preview   # say yes to "Setup Push Notifications"
+```
+
+The production **worker** must be running for pushes to send — see
+`docs/deploy.md` §1b.
+
 ## Checks
 
 ```bash

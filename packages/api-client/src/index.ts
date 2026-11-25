@@ -406,6 +406,30 @@ export function revokeConnectedAccount(
   return request(`/connect/accounts/${accountId}/revoke`, { method: "POST" });
 }
 
+/**
+ * Register this phone for case push notifications (Expo push token).
+ * Idempotent — call on every launch while notifications are allowed.
+ */
+export function registerPushDevice(
+  token: string,
+  platform: "ios" | "android",
+): Promise<{ registered: boolean }> {
+  return request("/me/push-devices", {
+    method: "POST",
+    body: { token, platform },
+  });
+}
+
+/** Stop pushing to this phone (sign-out). */
+export function unregisterPushDevice(
+  token: string,
+): Promise<{ removed: boolean }> {
+  return request("/me/push-devices/unregister", {
+    method: "POST",
+    body: { token },
+  });
+}
+
 /** A company on the user's "uses" profile (powers affects-you matching). */
 export interface UserCompany {
   id: string;

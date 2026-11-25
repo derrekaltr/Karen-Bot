@@ -96,6 +96,8 @@ authority at any time (kill switch); admins can block any case.
 | `KARENBOT_ADMIN_TOKEN` | `dev-admin` | admin console token (dev default rejected in prod) |
 | `KARENBOT_SENTRY_DSN` | – | enables Sentry (`pip install 'karenbot-api[observability]'`) |
 | `KARENBOT_ANTHROPIC_API_KEY` | – | required for `anthropic` |
+| `KARENBOT_PUSH_PROVIDER` | `expo` | mobile push via Expo's push service; `log` = log only |
+| `KARENBOT_EXPO_ACCESS_TOKEN` | – | only if Expo "enhanced push security" is on |
 | `KARENBOT_AGENT_MODEL` | `claude-sonnet-5-5` | drafting/reasoning model |
 | `KARENBOT_CLASSIFIER_MODEL` | `claude-haiku-4-5-20251001` | reply classification |
 | `KARENBOT_MAX_OUTBOUND_PER_CASE_PER_DAY` | 3 | global rate limit |
