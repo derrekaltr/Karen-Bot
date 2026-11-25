@@ -3,10 +3,13 @@
   "private": true,
   "workspaces": [
     "apps/web",
-    "packages/contracts"
+    "packages/contracts",
+    "packages/api-client"
   ],
   "scripts": {
     "dev:web": "npm run dev --workspace apps/web",
-    "build:web": "npm run build --workspace apps/web"
+    "build:web": "npm run build --workspace apps/web",
+    "dev:mobile": "npm run start --prefix apps/mobile",
+    "typecheck:mobile": "npm run typecheck --prefix apps/mobile"
   }
 }

@@ -23,6 +23,7 @@ make dev         # Postgres (+ optional MinIO) via docker compose
 make migrate     # Alembic migrations
 make api         # FastAPI on :8000
 npm run dev:web  # Next.js on :3000
+make mobile      # iPhone app via Expo Go — see apps/mobile/README.md
 ```
 
 `make demo-e2e` runs the whole product loop in one process: case intake →
@@ -40,6 +41,7 @@ run the same flow with Claude instead of the deterministic scripted model.
 
 ```
 apps/web        Next.js 15 + Tailwind (landing, dashboard shell, intake UI)
+apps/mobile     Expo (React Native) iPhone app — customer case flow
 apps/api        FastAPI + SQLAlchemy + Alembic
   src/karenbot/
     domain/     models, 16-state case machine, audit events
@@ -51,6 +53,7 @@ apps/api        FastAPI + SQLAlchemy + Alembic
     llm/        provider abstraction: Anthropic + scripted
     simulator/  company personas (lowball, stonewall, injection attacker, ...)
   tests/        unit / policy / workflows / injection / e2e
+packages/api-client typed fetch client shared by web + mobile
 packages/contracts  generated API types (placeholder)
 infra/          docker-compose: Postgres+pgvector, MinIO (profile: storage)
 docs/           architecture, state machine
@@ -93,6 +96,8 @@ authority at any time (kill switch); admins can block any case.
 | `KARENBOT_ADMIN_TOKEN` | `dev-admin` | admin console token (dev default rejected in prod) |
 | `KARENBOT_SENTRY_DSN` | – | enables Sentry (`pip install 'karenbot-api[observability]'`) |
 | `KARENBOT_ANTHROPIC_API_KEY` | – | required for `anthropic` |
+| `KARENBOT_PUSH_PROVIDER` | `expo` | mobile push via Expo's push service; `log` = log only |
+| `KARENBOT_EXPO_ACCESS_TOKEN` | – | only if Expo "enhanced push security" is on |
 | `KARENBOT_AGENT_MODEL` | `claude-sonnet-5-5` | drafting/reasoning model |
 | `KARENBOT_CLASSIFIER_MODEL` | `claude-haiku-4-5-20251001` | reply classification |
 | `KARENBOT_MAX_OUTBOUND_PER_CASE_PER_DAY` | 3 | global rate limit |

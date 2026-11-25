@@ -67,6 +67,13 @@ class Settings(BaseSettings):
     plaid_client_id: str = ""
     plaid_secret: str = ""
 
+    # Push notifications to the mobile app via Expo's push service.
+    # "expo" sends for real; "log" only logs (tests, offline dev).
+    push_provider: str = "expo"
+    # Optional: required only if "enhanced push security" is enabled for the
+    # Expo project (Expo dashboard → access tokens).
+    expo_access_token: str = ""
+
     # Worker
     worker_poll_seconds: float = 2.0
     outbox_sending_lease_seconds: int = 300

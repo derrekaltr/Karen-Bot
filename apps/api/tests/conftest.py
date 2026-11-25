@@ -14,6 +14,8 @@ def db(tmp_path, monkeypatch):
     # Determinism + zero cost: tests always run on the scripted client,
     # even when the developer's .env selects the real provider.
     monkeypatch.setenv("KARENBOT_LLM_PROVIDER", "scripted")
+    # Never call Expo's push service from tests.
+    monkeypatch.setenv("KARENBOT_PUSH_PROVIDER", "log")
     monkeypatch.setenv("KARENBOT_MIN_HOURS_BETWEEN_OUTBOUND", "0")
     monkeypatch.setenv("KARENBOT_MAX_OUTBOUND_PER_CASE_PER_DAY", "10")
 

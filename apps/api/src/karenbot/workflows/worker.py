@@ -17,6 +17,7 @@ from karenbot.config import get_settings
 from karenbot.db.session import get_session_factory
 from karenbot.domain.enums import ACTIVE_STATES, Counterparty
 from karenbot.domain.models import Case, Communication, ScheduledJob
+from karenbot.notifications import push
 from karenbot.workflows import inbound, outbox, scheduler
 
 logger = logging.getLogger("karenbot.worker")
@@ -30,14 +31,23 @@ class Worker:
         worker_id: str | None = None,
         *,
         per_account: bool = False,
+        push_client: push.PushClient | None = None,
     ):
         """`per_account=True` resolves the adapter per outbox row / connected
         account (production, real providers). False uses the fixed adapter
-        (dev/mock, tests)."""
+        (dev/mock, tests). `push_client` defaults from settings
+        (KARENBOT_PUSH_PROVIDER)."""
         self.adapter = adapter
         self.runtime = runtime
         self.worker_id = worker_id or f"worker-{uuid.uuid4().hex[:8]}"
         self.per_account = per_account
+        self._push_client = push_client
+
+    @property
+    def push_client(self) -> push.PushClient:
+        # Late-bound like the session factory: follows current settings
+        # unless a client was injected.
+        return self._push_client or push.get_push_client()
 
     @property
     def session_factory(self):
@@ -121,7 +131,15 @@ class Worker:
             session.rollback()
 
     def job_handlers(self) -> dict[str, scheduler.JobHandler]:
-        return {"follow_up": self._run_follow_up_job}
+        return {
+            "follow_up": self._run_follow_up_job,
+            push.JOB_PUSH: lambda session, job: push.run_push_job(
+                session, job, self.push_client
+            ),
+            push.JOB_RECEIPTS: lambda session, job: push.run_receipts_job(
+                session, job, self.push_client
+            ),
+        }
 
     def _run_follow_up_job(self, session: Session, job: ScheduledJob) -> None:
         if job.case_id is None:

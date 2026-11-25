@@ -7,12 +7,13 @@ the browser with no external services.
 """
 
 import logging
+import re
 import uuid
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from datetime import date as datetime_date
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -35,6 +36,7 @@ from karenbot.domain.models import (
     Communication,
     Company,
     User,
+    utcnow,
 )
 from karenbot.llm.scripted import ScriptedClient
 from karenbot.observability import init_observability  # noqa: E402
@@ -328,6 +330,63 @@ def remove_my_company(
     if row is None or row.user_id != user.id:
         raise HTTPException(404, "not found")
     db.delete(row)
+    return {"removed": True}
+
+
+# --------------------------------------------------------------------------
+# Push devices (mobile app notifications)
+# --------------------------------------------------------------------------
+
+_EXPO_PUSH_TOKEN = re.compile(r"^Expo(nent)?PushToken\[[A-Za-z0-9_\-]{1,200}\]$")
+
+
+class PushDeviceIn(BaseModel):
+    token: str
+    platform: Literal["ios", "android"]
+
+
+class PushDeviceTokenIn(BaseModel):
+    token: str
+
+
+@app.post("/me/push-devices")
+def register_push_device(
+    payload: PushDeviceIn,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, bool]:
+    """Idempotent. Called on every app launch while notifications are
+    allowed (tokens can rotate). A token seen under another account moves to
+    this one — one phone, one signed-in user, no cross-account alerts."""
+    from karenbot.domain.models import PushDevice
+
+    if not _EXPO_PUSH_TOKEN.match(payload.token):
+        raise HTTPException(422, "not an Expo push token")
+    device = db.scalars(select(PushDevice).where(PushDevice.token == payload.token)).first()
+    if device is None:
+        db.add(PushDevice(user_id=user.id, token=payload.token, platform=payload.platform))
+    else:
+        device.user_id = user.id
+        device.platform = payload.platform
+        device.disabled_at = None
+        device.disabled_reason = None
+    return {"registered": True}
+
+
+@app.post("/me/push-devices/unregister")
+def unregister_push_device(
+    payload: PushDeviceTokenIn,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, bool]:
+    """Sign-out path: stop pushing this user's cases to this phone."""
+    from karenbot.domain.models import PushDevice
+
+    device = db.scalars(select(PushDevice).where(PushDevice.token == payload.token)).first()
+    if device is None or device.user_id != user.id or device.disabled_at is not None:
+        return {"removed": False}
+    device.disabled_at = utcnow()
+    device.disabled_reason = "signed_out"
     return {"removed": True}
 
 

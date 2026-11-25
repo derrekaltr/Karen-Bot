@@ -49,6 +49,27 @@ Render. Vercel cannot run the API (long-lived worker loop, Postgres).
 6. The container runs `alembic upgrade head` on boot — migrations apply
    automatically.
 
+## 1b. Worker on Railway (required for anything asynchronous)
+
+The API container only serves HTTP. Everything that happens *later* —
+outbox email delivery, follow-up timers, inbound mail polling, and **push
+notifications to the iPhone app** — runs in the worker loop. Without a
+worker service, none of it happens in production.
+
+1. In the same Railway project: New → GitHub repo → same repo, root
+   `apps/api` (same Dockerfile).
+2. Settings → Deploy → Custom start command:
+   `python -m karenbot.workflows.worker`
+3. Variables: share the API service's variables (Railway "shared
+   variables"), especially `KARENBOT_DATABASE_URL`. No public domain.
+4. Run exactly one replica to start (claims are race-safe, but one is
+   plenty).
+
+Push-specific variables (API + worker):
+- `KARENBOT_PUSH_PROVIDER=expo` (default; `log` disables real sends)
+- `KARENBOT_EXPO_ACCESS_TOKEN` — only if "enhanced push security" is
+  enabled for the Expo project.
+
 ## 2. Web on Vercel
 
 1. vercel.com → Add New → Project → import the GitHub repo.

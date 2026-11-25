@@ -1,4 +1,4 @@
-.PHONY: help dev dev-down venv install install-web migrate test test-pg lint typecheck demo-e2e api worker
+.PHONY: help dev dev-down venv install install-web install-mobile migrate test test-pg lint typecheck demo-e2e api api-lan worker mobile
 
 PY ?= python3
 VENV := apps/api/.venv
@@ -17,6 +17,8 @@ help:
 	@echo "  make typecheck  - mypy + tsc"
 	@echo "  make demo-e2e   - simulated end-to-end case flow (mock email + scripted LLM)"
 	@echo "  make api        - run FastAPI dev server"
+	@echo "  make api-lan    - same, reachable from a phone on your Wi-Fi (for Expo Go)"
+	@echo "  make mobile     - start the Expo dev server for the iPhone app"
 	@echo "  make worker     - run the scheduler/outbox worker loop"
 
 venv:
@@ -56,6 +58,15 @@ demo-e2e:
 
 api:
 	cd apps/api && .venv/bin/uvicorn karenbot.api.main:app --reload --port 8000
+
+api-lan:
+	cd apps/api && ../../$(VENV)/bin/uvicorn karenbot.api.main:app --reload --host 0.0.0.0 --port 8000
+
+install-mobile:
+	cd apps/mobile && npm install
+
+mobile:
+	cd apps/mobile && npx expo start
 
 worker:
 	cd apps/api && .venv/bin/python -m karenbot.workflows.worker

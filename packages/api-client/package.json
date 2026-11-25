@@ -1,0 +1,14 @@
+{
+  "name": "@karenbot/api-client",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Typed fetch client for the KarenBot API, shared by web and mobile.",
+  "types": "src/index.ts",
+  "main": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}

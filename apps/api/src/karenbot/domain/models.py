@@ -436,6 +436,25 @@ class UserCompany(TimestampMixin, Base):
     )
 
 
+class PushDevice(TimestampMixin, Base):
+    """A phone that receives push notifications for one user.
+
+    `token` is an Expo push token. A token belongs to at most one user: if a
+    different account signs in on the same phone, registration moves the
+    token so the previous account's case alerts never land on it. Disabled
+    (not deleted) when Expo reports DeviceNotRegistered or the user signs out.
+    """
+
+    __tablename__ = "push_devices"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    token: Mapped[str] = mapped_column(String(255), unique=True)
+    platform: Mapped[str] = mapped_column(String(20))  # ios | android
+    disabled_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
+    disabled_reason: Mapped[str | None] = mapped_column(String(80))
+
+
 class ClaimEvent(TimestampMixin, Base):
     """A public incident (outage, disruption, recall) where a published
     policy owes affected customers something.
